@@ -61,15 +61,21 @@ public class Timetable extends View {
     public boolean moving;
     private boolean edit;
     private ShowClass one;//被点击的
-    //展开的移动坐标
+    //起始位置
     private float SL;
     private float SR;
     private float ST;
-    private float SD;
+    private float SB;
+
+    //结束位置
     private float EL;
     private float ER;
     private float ET;
-    private float ED;
+    private float EB;
+
+    //移动坐标
+
+
     private int tempt1;
     private int tempt2;
 
@@ -140,6 +146,11 @@ public class Timetable extends View {
 
         OneH = Height / (Aclass + Mclass);
         OneW = Width / 7;
+
+        EL = (float) Width / 6;
+        ER = (float) (Width * 5) / 6;
+        ET = (float) (Height *0.25);
+        EB = (float) (Height *0.75);
     }
 
 
@@ -225,14 +236,49 @@ public class Timetable extends View {
         OneW = Width / 7;
         invalidate();
     }
+
+
+    /**
+     *
+     * @author 20535
+     * @time 2021/3/10 15:28
+     * 确定点击的课程,初始化起始坐标
+     */
+    public boolean get_Pointed(int w, int t) {
+
+        one=null;
+        for(int i=0;i<Has.length;i++){
+            if(Has[i].week==w)
+                if(Has[i].time1<=t&&Has[i].time2>=t) {
+                    one = Has[i];
+                    SL = one.week * OneW;
+                    ST = one.time1 * OneH;
+                    SR = (one.week + 1) * OneW;
+                    SB = (one.time2 + 1) * OneH;
+                    return true;
+                }
+        }
+        return false;
+    }
+    /**
+     *
+     * @author 20535
+     * @time 2021/3/11 8:37
+     * 获取点开的课程
+     */
+    public ShowClass get_One() {
+        return one;
+    }
+
     /**
      *
      * @author 20535
      * @time 2021/3/10 14:04
      * 点开某课程
      */
-    public void Openi() {
-        moving = true;
+    public void Open_class() {
+        moving = true;//移动状态
+
         // 第一步：初始化Observable
         Observable.create((ObservableOnSubscribe<Float>) e -> {
             CC = 4;
@@ -365,19 +411,9 @@ public class Timetable extends View {
         return Cnum.size()==0;
     }
 
-    public ShowClass get_Class(int w, int t) {
-        one=Has[t * 7 + w];
-        if(one==null)
-            return null;
-        EL = Width / 6 - one.week * OneW;
-        ER = (Width * 5) / 6 - (one.week + 1) * OneW;
-        ET = (Height) / 4 - one.time1 * OneH;
-        ED = (Height *3) / 4 - (one.time2 + 1) * OneH;
-        return one;
-    }
-    public ShowClass get_One() {
-        return one;
-    }
+
+
+
 
     public void init_chick() {
         if (!chicking) {
@@ -606,7 +642,7 @@ public class Timetable extends View {
     public boolean Should_Close_it(float x, float y) {
         return !(Width / 6 < x) || !(x < (Width * 5) / 6) || !((Height) / 4 < y) || !(y < (Height * 3) / 4);
     }
-    public boolean Should_Change_it(float x, float y) {
+    public boolean Should_Edit_it(float x, float y) {
         return (Width * 7) / 15 < x && x < (Width * 8) / 15 && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
     }
     public boolean Should_Go(float x, float y) {
@@ -718,6 +754,5 @@ public class Timetable extends View {
 
         }
     }
-
 
 }

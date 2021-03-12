@@ -8,6 +8,7 @@ import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.MotionEvent;
@@ -43,15 +44,15 @@ public class MainActivity extends AppCompatActivity {
                                 table.Close_it();
                                 table.edit_over();
 
-                            } else if (table.Should_Go(event.getX(), event.getY())) {
+                            //} else if (table.Should_Go(event.getX(), event.getY())) {
 
-                            } else if (table.Should_Note(event.getX(), event.getY())) {
+                            //} else if (table.Should_Note(event.getX(), event.getY())) {
 
                             } else if (table.Should_Edit_it(event.getX(), event.getY())) {
 
                             }
                         }else{
-                            table.get_Pointed();
+                            table.get_Pointed(w,t);
                             table.Make_small();
                         }
                         break;
@@ -76,11 +77,28 @@ public class MainActivity extends AppCompatActivity {
                         break;
                     default:
                         table.Quick_Close_it();
-                        findViewById(R.id.editbu).setVisibility(View.GONE);
+                        //findViewById(R.id.editbu).setVisibility(View.GONE);
                         break;
                 }
                 return true;
             }
         });
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                table.addClass(0,0,1,"126663","123","123", Color.GRAY,false);
+
+                table.addClass(6,2,3,"123","123","123", Color.GRAY,false);
+
+                table.addClass(3,2,2,"测试","测试老师","一个教室", Color.DKGRAY,false);
+                table.flash();
+            }
+        }).start();
+
     }
 }

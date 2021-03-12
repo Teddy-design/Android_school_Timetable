@@ -8,6 +8,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorSpace;
 import android.graphics.Paint;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Looper;
 import android.text.Layout;
@@ -23,8 +24,13 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
+import androidx.renderscript.Allocation;
+import androidx.renderscript.Element;
+import androidx.renderscript.RenderScript;
+import androidx.renderscript.ScriptIntrinsicBlur;
 
 
+import com.Teddy.android_school_timetable.R;
 
 import java.util.ArrayList;
 import java.util.regex.Matcher;
@@ -48,6 +54,7 @@ public class Timetable extends View {
     Context context;
     public ShowClass[] Has;
 
+
     private int Height;//高
     private int Width;//宽
     private int Mclass;//上午课
@@ -60,6 +67,9 @@ public class Timetable extends View {
     public boolean opening;//打开开始
     public boolean moving;
     private boolean edit;
+
+    private boolean bur_first;//只模糊一次
+
     private ShowClass one;//被点击的
     //起始位置
     private float SL;
@@ -74,7 +84,20 @@ public class Timetable extends View {
     private float EB;
 
     //移动坐标
+    private float ML;
+    private float MR;
+    private float MT;
+    private float MB;
 
+    //动画更新次数,越大越慢
+    private final int C_speed = 180;
+
+    //移动距离
+    private float[] Move;
+    //剩余更新次数
+    int C_times;
+    //单次4边速度
+    float[] speed;
 
     private int tempt1;
     private int tempt2;
@@ -96,6 +119,7 @@ public class Timetable extends View {
 
     Bitmap editbp;
 
+    private Paint Main_Paint;
 
     boolean night;
 
@@ -126,13 +150,46 @@ public class Timetable extends View {
         this.context=context;
         setCnum(4, 4);
         setLayerType(LAYER_TYPE_HARDWARE,null);
-        chicking = false;
+
+        opening=false;
         moving = false;
-        init_Text();
+
+
+
+        /////////////////////////////////////////////
+        Drawable drawable = ContextCompat.getDrawable(context, R.mipmap.rr);
+        editbp = Bitmap.createBitmap(1080, 1920,
+                Bitmap.Config.ARGB_8888);
+        Canvas bp = new Canvas(editbp);
+        drawable.setBounds(0, 0, bp.getWidth(), bp.getHeight());
+        drawable.draw(bp);
+
+        //setCnum(4, 4);
+
+    }
+
+    @Override
+    public void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        Height = getMeasuredHeight();
+        Width = getMeasuredWidth();
+        try {
+            OneH = Height / (Aclass + Mclass);
+            OneW = Width / 7;
+        }catch (Exception e){
+            Toast.makeText(context,"课程数量设置异常",Toast.LENGTH_LONG).show();
+        }
+
+        init_Paint();
         init_N_class();
-        setCnum(4, 4);
+        //invalidate();
+
+    }
+
+    public void flash(){
         invalidate();
     }
+
     /**
      *
      * @author 20535
@@ -142,13 +199,16 @@ public class Timetable extends View {
     private void init_N_class(){
         SharedPreferences preferences = context.getSharedPreferences("class_num", Context.MODE_PRIVATE);
 
-        preferences.getInt("morning", false)
+        Mclass=preferences.getInt("morning", 2);
+        Aclass=preferences.getInt("afternoon", 3);
 
+        Has = new ShowClass[(Mclass + Aclass) * 7];
+        Cnum = new ArrayList<>();
         OneH = Height / (Aclass + Mclass);
         OneW = Width / 7;
 
-        EL = (float) Width / 6;
-        ER = (float) (Width * 5) / 6;
+        EL = (float) Width / 5;
+        ER = (float) (Width * 0.8);
         ET = (float) (Height *0.25);
         EB = (float) (Height *0.75);
     }
@@ -158,9 +218,9 @@ public class Timetable extends View {
      *
      * @author 20535
      * @time 2021/3/9 11:39
-     * 初始化文字属性
+     * 初始化Paint
      */
-    private void init_Text(){
+    private void init_Paint(){
         P_text_paint = new TextPaint();
         P_text_paint.setAntiAlias(true);
         P_text_paint.setSubpixelText(true);
@@ -170,6 +230,11 @@ public class Timetable extends View {
         N_text_paint.setAntiAlias(true);
         N_text_paint.setSubpixelText(true);
         N_text_paint.setStyle(Paint.Style.FILL);
+
+        Main_Paint = new Paint();
+        Main_Paint.setAntiAlias(true);
+        Main_Paint.setSubpixelText(true);
+        Main_Paint.setStyle(Paint.Style.FILL);
 
         auto_set_textsize();
     }
@@ -185,7 +250,7 @@ public class Timetable extends View {
         WindowManager manager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         manager.getDefaultDisplay().getMetrics(displayMetrics);//获取屏幕参数
         N_text_size=displayMetrics.widthPixels/27;
-        P_text_size=displayMetrics.widthPixels/26;
+        P_text_size=displayMetrics.widthPixels/20;
         N_text_paint.setTextSize(N_text_size);
         P_text_paint.setTextSize(P_text_size);
         
@@ -246,18 +311,17 @@ public class Timetable extends View {
      */
     public boolean get_Pointed(int w, int t) {
 
+
         one=null;
-        for(int i=0;i<Has.length;i++){
-            if(Has[i].week==w)
-                if(Has[i].time1<=t&&Has[i].time2>=t) {
-                    one = Has[i];
-                    SL = one.week * OneW;
-                    ST = one.time1 * OneH;
-                    SR = (one.week + 1) * OneW;
-                    SB = (one.time2 + 1) * OneH;
-                    return true;
-                }
+        if (Has[t * 7 + w]!=null){
+            one = Has[t * 7 + w];
+            SL = one.week * OneW;
+            ST = one.time1 * OneH;
+            SR = (one.week + 1) * OneW;
+            SB = (one.time2 + 1) * OneH;
+            return true;
         }
+
         return false;
     }
     /**
@@ -274,25 +338,54 @@ public class Timetable extends View {
      *
      * @author 20535
      * @time 2021/3/10 14:04
-     * 点开某课程
+     * 点开某课程的过程
      */
     public void Open_class() {
         moving = true;//移动状态
+        opening=true;
+
+        ////////////////////
+        ML=EL-SL;
+        MT=ET-ST;
+        MR=ER-SR;
+        MB=EB-SB;
+
+        float[] Dis={ML,MT,MR,MB};
+        float temp= Dis[3];
+        for(int i=0;i<3;i++){
+            if(temp<Dis[i])
+                temp=Dis[i];
+        }
+        C_times= C_speed;
+        Move= new float[]{0, 0, 0, 0};
+        speed= new float[]{ML / C_speed, MT / C_speed, MR / C_speed, MB / C_speed};
 
         // 第一步：初始化Observable
-        Observable.create((ObservableOnSubscribe<Float>) e -> {
-            CC = 4;
-            CCC = 2.98f;
-            for (; CC > 1.0; CC -= CCC) {
-                e.onNext(CC);
-                if (CCC > 0.014)
-                    CCC = (float) (CCC /2);
-                sleep(14 - (int) (CC*1.42));
+        Observable.create((ObservableOnSubscribe<Integer>) e -> {
+            if(Move==null||speed==null||one==null){
+                Throwable Terro=new Throwable();
+                e.onError(Terro);
+            }
+            for (;C_times>=0;C_times--) {
+                if(C_times>(C_speed/2)) {
+                    for (int n = 0; n < 4; n++) {
+                        Move[n] += 3 * speed[n];
+                    }
+                    C_times -= 2;
+                }
+                else{
+                    for(int n=0; n<4;n++){
+                        Move[n]+=speed[n];
+                    }
+                }
+
+                e.onNext(C_times);
+                sleep((C_speed-C_times)/130);
             }
             e.onComplete();
         }).subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Observer<Float>() { // 第三步：订阅
+                .subscribe(new Observer<Integer>() { // 第三步：订阅
 
                     // 第二步：初始化Observer
                     private Disposable mDisposable;
@@ -303,21 +396,19 @@ public class Timetable extends View {
                     }
 
                     @Override
-                    public void onNext(@NonNull Float f) {
+                    public void onNext(@NonNull Integer Temp_times) {
 
-                        SL = EL / f;
-                        SR = ER / f;
-                        ST = ET / f;
-                        SD = ED / f;
-                        invalidate();
-                        if (f < 1) {
+                        if (Temp_times < 0) {
                             mDisposable.dispose();
+                            Quick_Close_it();
                         }
+
+                        invalidate();
                     }
 
                     @Override
                     public void onError(@NonNull Throwable e) {
-                        Log.d("open", "onError : value : " + e.getMessage() + "\n");
+                        Log.e("open", "onError : value : " + e.getMessage() + "\n");
                         moving = false;
                     }
 
@@ -325,66 +416,63 @@ public class Timetable extends View {
                     public void onComplete() {
                         mDisposable.dispose();
                         moving = false;
+                        //opening=false;
                         invalidate();
                         Log.d("open", "onComplete" + "\n");
-                        EL = SL  ;
-                        ER = SR  ;
-                        ET = ST  ;
-                        ED = SD  ;
                     }
                 });
 
     }
 
-    public void addClass(int week, int t1, int t2, String name, String teacher, String room, String color,boolean open)throws ArrayIndexOutOfBoundsException {
+    public void addClass(int week, int t1, int t2, String name, String teacher, String room, int tempcolor, boolean open) throws ArrayIndexOutOfBoundsException {
 
-        post(new Runnable() {
-            @Override
-            public void run() {
-                ShowClass Addclass = new ShowClass();
-                Addclass.week = week;
-                Addclass.time1 = t1;
-                Addclass.time2 = t2;
-                Addclass.name = name;
-                Addclass.room = room;
-                Addclass.onchick = false;
-                if(night){
-                    int tempcolor=Color.parseColor(color);
-                    int r = 0xFF & tempcolor;
-                    int g = 0xFF00 & tempcolor;
-                    g >>= 8;
-                    int b = 0xFF0000 & tempcolor;
-                    b >>= 16;
-                    r/=2;
-                    g/=2;
-                    b/=2;
-                    Addclass.color =Color.argb(255,r,g,b);
-                }else
-                    Addclass.color =Color.parseColor(color);
+        ShowClass Addclass = new ShowClass();
+        Addclass.week = week;
+        Addclass.time1 = t1;
+        Addclass.time2 = t2;
+        Addclass.name = name;
+        Addclass.teacher = teacher;
+        Addclass.room = room;
+        Addclass.onchick = false;
+        if (night) {
+            int r = 0xFF & tempcolor;
+            int g = 0xFF00 & tempcolor;
+            g >>= 8;
+            int b = 0xFF0000 & tempcolor;
+            b >>= 16;
+            r /= 2;
+            g /= 2;
+            b /= 2;
+            Addclass.color = Color.argb(255, r, g, b);
+        } else
+            Addclass.color = (tempcolor);
 
-                int count = 0;
-                Pattern p = Pattern.compile("\\d");
-                Matcher m = p.matcher(name);
-                while(m.find()){
-                    count++;
-                }
-                if((name.length()-count/2)>8)
-                    Addclass.n_name = new StaticLayout(name.substring(0,8+count/2), N_text_paint, OneW - 2, Layout.Alignment.ALIGN_CENTER, 1.0F, 0.0F, true);
-                else
-                    Addclass.n_name = new StaticLayout(name, N_text_paint, OneW - 2, Layout.Alignment.ALIGN_CENTER, 1.0F, 0.0F, true);
-                Addclass.n_room = new StaticLayout(room, N_text_paint, OneW - 2, Layout.Alignment.ALIGN_CENTER, 1.0F, 0.0F, true);
+        int count = 0;
+        Pattern p = Pattern.compile("\\d");
+        Matcher m = p.matcher(name);
+        while (m.find()) {
+            count++;
+        }
+        if ((name.length() - count / 2) > 8)
+            Addclass.n_name = new StaticLayout(name.substring(0, 8 + count / 2), N_text_paint, OneW - 2, Layout.Alignment.ALIGN_CENTER, 1.0F, 0.0F, true);
+        else
+            Addclass.n_name = new StaticLayout(name, N_text_paint, OneW - 2, Layout.Alignment.ALIGN_CENTER, 1.0F, 0.0F, true);
+        Addclass.n_room = new StaticLayout(room, N_text_paint, OneW - 2, Layout.Alignment.ALIGN_CENTER, 1.0F, 0.0F, true);
 
-                Addclass.p_name = new StaticLayout(name, P_text_paint, Width /2, Layout.Alignment.ALIGN_NORMAL, 1.2F, 0.0F, true);
-                Addclass.p_teacher = new StaticLayout(teacher, P_text_paint, Width /2, Layout.Alignment.ALIGN_NORMAL, 1.2F, 0.0F, true);
-                Addclass.p_room = new StaticLayout(room, P_text_paint, Width /2, Layout.Alignment.ALIGN_NORMAL, 1.2F, 0.0F, true);
+        Addclass.p_name = new StaticLayout(name, P_text_paint, Width / 2, Layout.Alignment.ALIGN_NORMAL, 1.2F, 0.0F, true);
+        Addclass.p_teacher = new StaticLayout(teacher, P_text_paint, Width / 2, Layout.Alignment.ALIGN_NORMAL, 1.2F, 0.0F, true);
+        Addclass.p_room = new StaticLayout(room, P_text_paint, Width / 2, Layout.Alignment.ALIGN_NORMAL, 1.2F, 0.0F, true);
 
-                Cnum.add(t1 * 7 + week);
-                if(open){
-                    Addclass.onchick=true;
-                    opening=true;
-                }
-            }
-        });
+        Cnum.add(t1 * 7 + week);
+        if (open) {
+            Addclass.onchick = true;
+            opening = true;
+        }
+        for(int i=t1;i<=t2;i++){
+            Has[i * 7 + week]=Addclass;
+        }
+
+
 
     }
 
@@ -398,37 +486,13 @@ public class Timetable extends View {
         }
     }
 
-    public boolean clearClass() {
-        Has = new ShowClass[(Mclass + Aclass) * 7];
-        Cnum = new ArrayList<>();
-
-        chicking=false;
-        moving=false;
-
-        return true;
-    }
-    public boolean is_clear() {
-        return Cnum.size()==0;
-    }
 
 
 
-
-
-    public void init_chick() {
-        if (!chicking) {
-            CH = 1;
-            chicking = true;
-            one.onchick = true;
-            opening = false;
-            moving = false;
-            Make_small();
-        }
-    }
 
     public void stop_chick() {
         CH = 1;
-        chicking = false;
+
         if(one!=null)
             one.onchick = false;
         one=null;
@@ -488,7 +552,7 @@ public class Timetable extends View {
 
     public void Make_nol() {
 
-        if (one == null || !chicking || moving)
+        if (one == null)
             return;
         moving = true;
         Observable.create(new ObservableOnSubscribe<Integer>() { // 第一步：初始化Observable
@@ -578,7 +642,7 @@ public class Timetable extends View {
                         SL = EL / f;
                         SR = ER / f;
                         ST = ET / f;
-                        SD = ED / f;
+                        SB = EB / f;
                         invalidate();
                         if (f > 10) {
                             mDisposable.dispose();
@@ -606,13 +670,12 @@ public class Timetable extends View {
 
 
     public void Open_it() {
-        if (chicking && !opening) {
-            chicking = false;
-            opening = true;
-            tempt1=one.time1;
-            tempt2=one.time2;
-            SL = SR = ST = SD = 0;
-            Openi();
+
+        if (one!=null) {
+
+            one.onchick=true;
+            bur_first=true;
+            Open_class();
         }
     }
 
@@ -622,13 +685,12 @@ public class Timetable extends View {
     public void Quick_Close_it() {
         Log.d("VIEW","关闭所有已打开课程");
         CH = 1;
-        chicking = false;
+
         if(one!=null){
             one.onchick = false;
             one=null;
         }
-        opening = false;
-        moving = false;
+
         invalidate();
     }
     public void edit_it() {
@@ -645,29 +707,18 @@ public class Timetable extends View {
     public boolean Should_Edit_it(float x, float y) {
         return (Width * 7) / 15 < x && x < (Width * 8) / 15 && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
     }
-    public boolean Should_Go(float x, float y) {
-        return (one.week * OneW + SL  + daohang.getWidth()*2) < x && x < (one.week * OneW + SL  + daohang.getWidth()*3) && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
-    }
-    public boolean Should_Note(float x, float y) {
-        return ((one.week + 1) * OneW + SR - beiwang.getWidth()*3) < x && x < ((one.week + 1) * OneW + SR - beiwang.getWidth()*2) && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
-    }
+    //public boolean Should_Go(float x, float y) {
+    //    return (one.week * OneW + SL  + daohang.getWidth()*2) < x && x < (one.week * OneW + SL  + daohang.getWidth()*3) && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
+    //}
+    //public boolean Should_Note(float x, float y) {
+    //    return ((one.week + 1) * OneW + SR - beiwang.getWidth()*3) < x && x < ((one.week + 1) * OneW + SR - beiwang.getWidth()*2) && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
+    //}
     public boolean Is_Open() {
         return opening;
     }
 
 
-    @Override
-    public void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        Height = getMeasuredHeight();
-        Width = getMeasuredWidth();
-        try {
-            OneH = Height / (Aclass + Mclass);
-            OneW = Width / 7;
-        }catch (Exception e){
-            Toast.makeText(context,"课程数量设置异常",Toast.LENGTH_LONG).show();
-        }
-    }
+
 
     @Override
     public void onSizeChanged(int w, int h, int oldw, int oldh) {
@@ -676,83 +727,166 @@ public class Timetable extends View {
         auto_set_textsize();
     }
 
+
+    private Bitmap mBitmapToBlur, mBlurredBitmap;
+
     @Override
     public void onDraw(Canvas canvas) {
         super.onDraw(canvas);
        // canvas.drawLine(0, OneH * Mclass, Width, OneH * Mclass, paint);//中午
 
+        canvas.save();
+        prepare();
+        canvas.drawBitmap(editbp, 0,0,Main_Paint);
+        if(opening&&bur_first)
+            bur_canvas.drawBitmap(editbp, 0,0,Main_Paint);
         for (int i = 0; i < Cnum.size(); i++) {
+
             ShowClass a = Has[Cnum.get(i)];
             if (a.onchick)
                 continue;
-            paint.setColor(a.color);
-            canvas.drawRoundRect(a.week * OneW, a.time1 * OneH, (a.week + 1) * OneW, (a.time2 + 1) * OneH, 15, 15, paint);
-            canvas.translate(a.week * OneW + 1, (a.time1) * OneH);
-            a.Tname.draw(canvas);
-            canvas.translate(0, (OneH * (7 + a.time2 - a.time1) / 11));
-            a.Troom.draw(canvas);
-            canvas.translate(0, -(OneH * (7 + a.time2 - a.time1) / 11));
-            canvas.translate(-(a.week * OneW + 1), -(a.time1) * OneH);
+            if (!opening) {
+                Main_Paint.setColor(a.color);
+                canvas.drawRoundRect(a.week * OneW, a.time1 * OneH, (a.week + 1) * OneW, (a.time2 + 1) * OneH, 15, 15, Main_Paint);
+                canvas.translate(a.week * OneW + 1, (a.time1) * OneH);
+                a.n_name.draw(canvas);
+                canvas.translate(0, (OneH * (7 + a.time2 - a.time1) / 11));
+                a.n_room.draw(canvas);
+                canvas.translate(0, -(OneH * (7 + a.time2 - a.time1) / 11));
+                canvas.translate(-(a.week * OneW + 1), -(a.time1) * OneH);
+            }
+            ///////////////////
+            if (opening&&bur_first) {
+                Main_Paint.setColor(a.color);
+                bur_canvas.drawRoundRect(a.week * OneW, a.time1 * OneH, (a.week + 1) * OneW, (a.time2 + 1) * OneH, 15, 15, Main_Paint);
+                bur_canvas.translate(a.week * OneW + 1, (a.time1) * OneH);
+                a.n_name.draw(bur_canvas);
+                bur_canvas.translate(0, (OneH * (7 + a.time2 - a.time1) / 11));
+                a.n_room.draw(bur_canvas);
+                bur_canvas.translate(0, -(OneH * (7 + a.time2 - a.time1) / 11));
+                bur_canvas.translate(-(a.week * OneW + 1), -(a.time1) * OneH);
+
+            }
+
+
         }
+
+        //mBitmapToBlur.eraseColor(((ColorDrawable) mBlurredView.getBackground()).getColor());
+
+
+
+        ////////////////
+
+
         if (chicking) {
-            paint.setColor(one.color);
-            canvas.drawRoundRect(Math.max(one.week * OneW + CH, 0), Math.max(one.time1 * OneH + CH, 0), Math.min((one.week + 1) * OneW - CH, Width), Math.min((one.time2 + 1) * OneH - CH, Height), 15, 15, paint);
+            Main_Paint.setColor(one.color);
+            canvas.drawRoundRect(Math.max(one.week * OneW + CH, 0), Math.max(one.time1 * OneH + CH, 0), Math.min((one.week + 1) * OneW - CH, Width), Math.min((one.time2 + 1) * OneH - CH, Height), 15, 15, Main_Paint);
             float dx=Math.max(one.week * OneW, 0);
             float dy=Math.max(one.time1 * OneH + CH, 0);
             canvas.translate(dx, dy);
-            paintText.setTextSize(textsize-CH/2);
-            one.Tname.draw(canvas);
+            N_text_paint.setTextSize(N_text_size-CH/2);
+            one.n_name.draw(canvas);
             canvas.translate(0, (OneH * (7 + one.time2 - one.time1) / 11));
-            one.Troom.draw(canvas);
+            one.n_room.draw(canvas);
             canvas.translate(0, -(OneH * (7 + one.time2 - one.time1) / 11));
             canvas.translate(-dx, -dy);
-            paintText.setTextSize(textsize);
+            N_text_paint.setTextSize(N_text_size);
         }
         if (opening) {
-            float lx=one.week * OneW + SL;
-            float rx=(one.week + 1) * OneW + SR;
-            float ty=tempt1 * OneH + ST;
-            float by=(tempt2 + 1) * OneH + SD;
+            canvas.restore();
+            blur();
+
+            canvas.drawBitmap(mBlurredBitmap, 0, 0, null);
+            float lx=SL + Move[0];
+
+            float ty=ST + Move[1];
+
+            float rx=SR + Move[2];
+
+            float by=SB + Move[3];
             int db=Width/18;
             //Opaint.setColor( o_text_color);
             //canvas.drawRoundRect(Math.min(lx + db, Width / 2)-2, Math.min(ty + db, Height / 2)-2, Math.max(rx - db, Width / 2)+2, Math.max(by - db, Height / 2)+2, 8, 8, Opaint);
+            Main_Paint.setColor(one.color);
+            canvas.drawRoundRect(lx , ty, rx, by , 8, 8, Main_Paint);
+            Main_Paint.setColor(Color.WHITE);
+            canvas.drawRoundRect(lx , ty, rx, by-2*db, 8, 8, Main_Paint);
+            Main_Paint.setColor(one.color);
 
-            Opaint.setColor(back_color);
-            canvas.drawRoundRect(lx + db, ty + db, rx - db, by - 2*db, 8, 8, Opaint);
-
-            Opaint.setColor(one.color);
-            canvas.drawRoundRect(lx + db, by - 3*db, rx - db, by - db, 8, 8, Opaint);
             //Opaint.setColor(one.color);
             //setLayerType(View.LAYER_TYPE_HARDWARE, null);
-            paintText.setColor(o_text_color);
-            paintText.setShadowLayer(0f, 0, 0, Color.GRAY);
-            float dx=lx+ 2*db;
 
-            canvas.translate( dx, tempt1 * OneH + ST + Width / 11);
-            if(CC<1.2){
-                one.Oname.draw(canvas);
-                canvas.translate(0, (by-ty)/4);
-                one.Oteacher.draw(canvas);
-                canvas.translate(0, (by-ty)/4);
-                one.Oroom.draw(canvas);
-                canvas.translate(0, -(by-ty)/2);
+            float dx=lx+ db;
+
+            if(C_times<(C_speed/2)){
+                canvas.translate( dx, ty + Width / 11);
+                one.p_name.draw(canvas);
+                canvas.translate(0, (by-ty)*3/10);
+                one.p_teacher.draw(canvas);
+                canvas.translate(0, (by-ty)*3/10);
+                one.p_room.draw(canvas);
+                canvas.translate(0, -(by-ty)*3/5);
+                canvas.translate(-dx, -(tempt1 * OneH + ST + Width / 11));
             }
-            else
-                one.Tname.draw(canvas);
-
-            canvas.translate(-dx, -(tempt1 * OneH + ST + Width / 11));
-
-            paintText.setColor(Color.WHITE);
-            paintText.setShadowLayer(2f, 1, 1, Color.GRAY);
-            int www=1-(int)(Width/1000);
-            canvas.drawBitmap(daohang, (lx  + daohang.getWidth()*2-30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
-            canvas.drawBitmap(beiwang, (rx  - beiwang.getWidth()*3+30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
-            if(!edit){
-                canvas.drawBitmap(editbp, (rx+lx  - editbp.getWidth())/2, (tempt2 + 1) * OneH + SD - Width / 7-6-4*www, paint);
+            else{
+                canvas.translate(one.week * OneW + 1 + Move[0], (one.time1) * OneH+Move[1]);
+                one.n_name.draw(canvas);
+                canvas.translate(0, (OneH * (7 + one.time2 - one.time1) / 11));
+                one.n_room.draw(canvas);
+                canvas.translate(0, -(OneH * (7 + one.time2 - one.time1) / 11));
+                canvas.translate(-(one.week * OneW + 1 + Move[0]), -(one.time1) * OneH+Move[1]);
             }
+
+
+
+
+            int www=1- (Width/1000);
+            //canvas.drawBitmap(daohang, (lx  + daohang.getWidth()*2-30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
+            //canvas.drawBitmap(beiwang, (rx  - beiwang.getWidth()*3+30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
+            //if(!edit){
+                //canvas.drawBitmap(editbp, (rx+lx  - editbp.getWidth())/2, (tempt2 + 1) * OneH + SD - Width / 7-6-4*www, paint);
+            //}
 
 
         }
     }
+
+    private void prepare(){
+        if(mBitmapToBlur==null){
+            mRenderScript = RenderScript.create(context);
+            mBlurScript = ScriptIntrinsicBlur.create(mRenderScript, Element.U8_4(mRenderScript));
+            mBlurScript.setRadius(8);
+
+            mBitmapToBlur = Bitmap.createBitmap(Width, Height,
+                    Bitmap.Config.ARGB_8888);
+
+
+            mBlurredBitmap = Bitmap.createBitmap(Width, Height,
+                    Bitmap.Config.ARGB_8888);
+
+
+            mBlurInput = Allocation.createFromBitmap(mRenderScript, mBitmapToBlur,
+                    Allocation.MipmapControl.MIPMAP_NONE, Allocation.USAGE_SCRIPT);
+            mBlurOutput = Allocation.createTyped(mRenderScript, mBlurInput.getType());
+            bur_canvas = new Canvas(mBitmapToBlur);
+        }
+    }
+
+    protected void blur() {
+        if(bur_first) {
+            mBlurInput.copyFrom(mBitmapToBlur);
+            mBlurScript.setInput(mBlurInput);
+            mBlurScript.forEach(mBlurOutput);
+            mBlurOutput.copyTo(mBlurredBitmap);
+            bur_first=!bur_first;
+        }
+
+    }
+
+
+    private RenderScript mRenderScript;
+    private ScriptIntrinsicBlur mBlurScript;
+    private Allocation mBlurInput, mBlurOutput;
+    private Canvas bur_canvas;
 
 }

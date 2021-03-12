@@ -2,7 +2,7 @@ package com.Teddy.android_school_timetable.view;
 
 import android.text.StaticLayout;
 
-import com.Teddy.Tclass.tool.MyClass;
+
 
 
 public class ShowClass {

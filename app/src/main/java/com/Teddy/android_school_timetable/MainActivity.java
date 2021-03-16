@@ -53,27 +53,27 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }else{
                             table.get_Pointed(w,t);
-                            table.Make_small();
+                            table.Press_classs();
                         }
                         break;
                     case MotionEvent.ACTION_MOVE:
                         if (table.get_One() != null && (w != table.get_One().week || (t < table.get_One().time1 || t > table.get_One().time2))) {
-                            table.Make_nol();
+                            table.Release_class();
                         } else
                             return false;
                         break;
                     case MotionEvent.ACTION_UP:
                         if (table.get_One() != null) {
                             if (table.get_One().week != w || table.get_One().time1 > t || table.get_One().time2 < t)
-                                table.Make_nol();
+                                table.Release_class();
                             else
-                                table.Open_it();
+                                table.Open_class();
                         }
                         table.performClick();
                         break;
                     case MotionEvent.ACTION_CANCEL:
                         if (table.get_One() != null)
-                            table.Make_nol();
+                            table.Release_class();
                         break;
                     default:
                         table.Quick_Close_it();

@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -37,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
             public boolean onTouch(View v, MotionEvent event) {
                 int w = (int) event.getX() / table.OneW;
                 int t = (int) event.getY() / table.OneH;
+                Log.d("action:",""+event.getAction());
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
                         if (table.Is_Open()) {

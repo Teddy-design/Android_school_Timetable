@@ -98,7 +98,7 @@ public class Timetable extends View {
     private float by;
 
     //动画更新次数,越大越慢
-    private final int C_speed = 180;
+    private final int C_speed = 60;
 
     //移动距离
     private float[] Move;
@@ -337,6 +337,8 @@ public class Timetable extends View {
      * 点开某课程的过程
      */
     public void Open_class() {
+        if(moving&&chicking)
+            chicking=false;
         if(moving||opening)
             return;
         moving = true;//移动状态
@@ -367,9 +369,9 @@ public class Timetable extends View {
             for (; C_times >= 0; C_times--) {
                 if (C_times > (C_speed / 2)) {
                     for (int n = 0; n < 4; n++) {
-                        Move[n] += 3 * speed[n];
+                        Move[n] += 2 * speed[n];
                     }
-                    C_times -= 2;
+                    C_times -= 1;
                 } else {
                     for (int n = 0; n < 4; n++) {
                         Move[n] += speed[n];
@@ -377,7 +379,7 @@ public class Timetable extends View {
                 }
 
                 e.onNext(C_times);
-                sleep((C_speed - C_times) / 130);
+                sleep((C_speed - C_times) / 50);
             }
             e.onComplete();
         }).subscribeOn(Schedulers.computation())
@@ -440,8 +442,10 @@ public class Timetable extends View {
             public void subscribe(@NonNull ObservableEmitter<Integer> e) throws Exception {
                 for (int i = 1; i < 8; i++) {
                     Move[0] = i;
+                    if(!chicking)
+                        e.onComplete();
                     e.onNext(i);
-                    sleep(12);
+                    sleep(8);
                 }
                 e.onComplete();
 
@@ -461,7 +465,7 @@ public class Timetable extends View {
                     @Override
                     public void onNext(@NonNull Integer i) {
                         invalidate();
-                        if (i > 6) {
+                        if (i > 8) {
                             mDisposable.dispose();
                         }
                     }
@@ -471,6 +475,7 @@ public class Timetable extends View {
                         if (debug)
                             Log.d("small", "onError : value : " + e.getMessage() + "\n");
                         moving = false;
+
 
                     }
 
@@ -490,7 +495,6 @@ public class Timetable extends View {
      * 松开课程回弹
      */
     public void Release_class() {
-        Log.e("!!!!!!!!!!",""+moving);
         if (one == null || !chicking||moving)
             return;
         moving = true;

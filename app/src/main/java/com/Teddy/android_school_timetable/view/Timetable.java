@@ -11,6 +11,7 @@ import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Looper;
+import android.os.Trace;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
@@ -43,6 +44,7 @@ import io.reactivex.rxjava3.core.ObservableEmitter;
 import io.reactivex.rxjava3.core.ObservableOnSubscribe;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
 import static android.os.SystemClock.sleep;
@@ -111,6 +113,9 @@ public class Timetable extends View {
     private int tempt2;
 
 
+    private boolean press_flag;//打断press标志
+    private boolean open_flag;//打断open标志
+
     int back_color;
 
     private int N_text_color;//normal文字颜色
@@ -161,6 +166,12 @@ public class Timetable extends View {
         opening = false;
         moving = false;
 
+
+
+        RxJavaPlugins.setErrorHandler(throwable -> {
+            //throwable.printStackTrace();
+            //啥也不做
+        });
 
         /////////////////////////////////////////////
         Drawable drawable = ContextCompat.getDrawable(context, R.mipmap.rr);
@@ -306,8 +317,7 @@ public class Timetable extends View {
      * @time 2021/3/10 15:28
      * 确定点击的课程,初始化起始坐标
      */
-    public boolean get_Pointed(int w, int t) {
-
+    public ShowClass get_Pointed(int w, int t) {
 
         one = null;
         if (Has[t * 7 + w] != null) {
@@ -316,10 +326,10 @@ public class Timetable extends View {
             ST = one.time1 * OneH;
             SR = (one.week + 1) * OneW;
             SB = (one.time2 + 1) * OneH;
-            return true;
+            return one;
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -337,12 +347,22 @@ public class Timetable extends View {
      * 点开某课程的过程
      */
     public void Open_class() {
-        if(moving&&chicking)
-            chicking=false;
-        if(moving||opening)
+        if (debug)
+            Log.d("Open_class", "start" + "\n");
+        if (moving && chicking) {//打断点击
+            chicking = false;
+            press_flag = false;
+        }
+        if (opening)
+            return;
+        if (one != null) {
+            one.onchick = true;
+            bur_first = true;
+        }else
             return;
         moving = true;//移动状态
         opening = true;
+        open_flag=true;
         chicking = false;
         ////////////////////
         ML = EL - SL;
@@ -356,25 +376,30 @@ public class Timetable extends View {
             if (temp < Dis[i])
                 temp = Dis[i];
         }
-        C_times = C_speed;
+
         Move = new float[]{0, 0, 0, 0};
         speed = new float[]{ML / C_speed, MT / C_speed, MR / C_speed, MB / C_speed};
 
         // 第一步：初始化Observable
         Observable.create((ObservableOnSubscribe<Integer>) e -> {
             if (Move == null || speed == null || one == null) {
-                Throwable Terro = new Throwable();
+                Throwable Terro = new Throwable("打开错误");
                 e.onError(Terro);
             }
-            for (; C_times >= 0; C_times--) {
-                if (C_times > (C_speed / 2)) {
-                    for (int n = 0; n < 4; n++) {
-                        Move[n] += 2 * speed[n];
-                    }
-                    C_times -= 1;
+            for (C_times = C_speed; C_times >= 0; C_times--) {
+                if (!open_flag) {
+                    Throwable Terro = new Throwable("打开打断");
+                    e.onError(Terro);
                 } else {
-                    for (int n = 0; n < 4; n++) {
-                        Move[n] += speed[n];
+                    if (C_times > (C_speed / 2)) {
+                        for (int n = 0; n < 4; n++) {
+                            Move[n] += 2 * speed[n];
+                        }
+                        C_times -= 1;
+                    } else {
+                        for (int n = 0; n < 4; n++) {
+                            Move[n] += speed[n];
+                        }
                     }
                 }
 
@@ -406,19 +431,98 @@ public class Timetable extends View {
 
                     @Override
                     public void onError(@NonNull Throwable e) {
+                        moving=false;
                         if (debug)
                             Log.e("open", "onError : value : " + e.getMessage() + "\n");
-                        moving = false;
+
                     }
 
                     @Override
                     public void onComplete() {
                         mDisposable.dispose();
-                        moving = false;
-                        //opening=false;
+                        moving=false;
                         invalidate();
                         if (debug)
                             Log.d("open", "onComplete" + "\n");
+                    }
+                });
+
+    }
+
+
+    /**
+     * @author 20535
+     * @time 2021/3/17 9:36
+     * 课程关闭，可打断打开过程
+     */
+    public void Close_class() {
+        if (debug)
+            Log.d("Close_class", "start" + "\n");
+        if(open_flag)//打断
+            open_flag=false;
+
+        moving=true;
+        // 第一步：初始化Observable
+        Observable.create((ObservableOnSubscribe<Integer>) e -> {
+            if (Move == null || speed == null || one == null) {
+                Throwable Terro = new Throwable("关闭打断");
+                e.onError(Terro);
+            }
+            for (; C_times <= C_speed; C_times++) {
+                if (C_times > (C_speed / 2)) {
+                    for (int n = 0; n < 4; n++) {
+                        Move[n] -= 2 * speed[n];
+                    }
+                    C_times += 1;
+                } else {
+                    for (int n = 0; n < 4; n++) {
+                        Move[n] -= speed[n];
+                    }
+                }
+
+                e.onNext(C_times);
+                sleep((C_speed - C_times) / 60);
+            }
+            e.onComplete();
+        }).subscribeOn(Schedulers.computation())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Integer>() { // 第三步：订阅
+
+                    // 第二步：初始化Observer
+                    private Disposable mDisposable;
+
+                    @Override
+                    public void onSubscribe(@NonNull Disposable d) {
+                        mDisposable = d;
+                    }
+
+                    @Override
+                    public void onNext(@NonNull Integer f) {
+                        if (f > C_speed) {
+                            mDisposable.dispose();
+                        }
+                        invalidate();
+                    }
+
+                    @Override
+                    public void onError(@NonNull Throwable e) {
+                        if (debug)
+                            Log.e("close", "onError : value : " + e.getMessage() + "\n");
+                        moving = false;
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        if (one != null)
+                            one.onchick = false;
+                        one = null;
+                        mDisposable.dispose();
+                        moving = false;
+                        opening = false;
+                        invalidate();
+                        //setLayerType(View.LAYER_TYPE_NONE, null);
+                        if (debug)
+                            Log.d("close", "onComplete" + "\n");
                     }
                 });
 
@@ -430,20 +534,25 @@ public class Timetable extends View {
      * 模拟按压变小
      */
     public void Press_classs() {
+
         if (moving || one == null)
             return;
-
+        press_flag=true;
         moving = true;
         chicking = true;
         one.onchick = true;
         Move = new float[]{0, 0, 0, 0};
+        if (debug)
+            Log.d("Press_classs", "start" + "\n");
         Observable.create(new ObservableOnSubscribe<Integer>() { // 第一步：初始化Observable
             @Override
             public void subscribe(@NonNull ObservableEmitter<Integer> e) throws Exception {
                 for (int i = 1; i < 8; i++) {
-                    Move[0] = i;
-                    if(!chicking)
-                        e.onComplete();
+                    if (!press_flag){
+                        e.onError(new Throwable("按压打断"));
+                    }else
+                        Move[0] = i;
+
                     e.onNext(i);
                     sleep(8);
                 }
@@ -473,10 +582,9 @@ public class Timetable extends View {
                     @Override
                     public void onError(@NonNull Throwable e) {
                         if (debug)
-                            Log.d("small", "onError : value : " + e.getMessage() + "\n");
-                        moving = false;
-
-
+                            Log.e("Press_classs", "onError : value : " + e.getMessage() + "\n");
+                        moving=false;
+                        mDisposable.dispose();
                     }
 
                     @Override
@@ -484,7 +592,7 @@ public class Timetable extends View {
                         mDisposable.dispose();
                         moving = false;
                         if (debug)
-                            Log.d("small", "onComplete" + "\n");
+                            Log.d("Press_classs", "onComplete" + "\n");
                     }
                 });
     }
@@ -495,9 +603,15 @@ public class Timetable extends View {
      * 松开课程回弹
      */
     public void Release_class() {
-        if (one == null || !chicking||moving)
+
+        if (one == null || !chicking )
+            return;
+        press_flag=false;
+        if(moving)
             return;
         moving = true;
+        if (debug)
+            Log.d("Release_class", "start" + "\n");
         Observable.create(new ObservableOnSubscribe<Integer>() { // 第一步：初始化Observable
             @Override
             public void subscribe(@NonNull ObservableEmitter<Integer> e) throws Exception {
@@ -532,7 +646,7 @@ public class Timetable extends View {
                     @Override
                     public void onError(@NonNull Throwable e) {
                         if (debug)
-                            Log.d("nol", "onError : value : " + e.getMessage() + "\n");
+                            Log.d("Release_class", "onError : value : " + e.getMessage() + "\n");
                         moving = false;
                     }
 
@@ -549,7 +663,7 @@ public class Timetable extends View {
 
                         invalidate();
                         if (debug)
-                            Log.d("nol", "onComplete" + "\n");
+                            Log.d("Release_class", "onComplete" + "\n");
                     }
                 });
 
@@ -622,88 +736,8 @@ public class Timetable extends View {
     }
 
 
-    private float CC;
-    private float CCC;
 
 
-    public void Closei() {
-        if (moving)
-            return;
-        moving = true;
-
-        // 第一步：初始化Observable
-        Observable.create((ObservableOnSubscribe<Float>) e -> {
-            CC = 1;
-
-            for (CCC = (float) 0.025; CC < 4; CC += CCC) {
-                e.onNext(CC);
-                if (CCC < 4)
-                    CCC *= 1.3;
-                sleep((int) (CC * 2) + 2);
-            }
-            e.onComplete();
-        }).subscribeOn(Schedulers.computation())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Observer<Float>() { // 第三步：订阅
-
-                    // 第二步：初始化Observer
-                    private Disposable mDisposable;
-
-                    @Override
-                    public void onSubscribe(@NonNull Disposable d) {
-                        mDisposable = d;
-                    }
-
-                    @Override
-                    public void onNext(@NonNull Float f) {
-                        SL = EL / f;
-                        SR = ER / f;
-                        ST = ET / f;
-                        SB = EB / f;
-                        invalidate();
-                        if (f > 10) {
-                            mDisposable.dispose();
-                        }
-                    }
-
-                    @Override
-                    public void onError(@NonNull Throwable e) {
-                        if (debug)
-                            Log.d("close", "onError : value : " + e.getMessage() + "\n");
-                        moving = false;
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        if (one != null)
-                            one.onchick = false;
-                        one = null;
-                        mDisposable.dispose();
-                        moving = false;
-                        opening = false;
-                        invalidate();
-                        //setLayerType(View.LAYER_TYPE_NONE, null);
-                        if (debug)
-                            Log.d("close", "onComplete" + "\n" + opening);
-                    }
-                });
-
-    }
-
-
-    public void Open_it() {
-
-        if (one != null) {
-
-            one.onchick = true;
-            bur_first = true;
-            Open_class();
-        }
-    }
-
-    public void Close_it() {
-        Closei();
-    }
 
     public void Quick_Close_it() {
         if (debug)
@@ -801,6 +835,9 @@ public class Timetable extends View {
 
         ////////////////
 
+        if(one==null){
+            return;
+        }
 
         if (chicking) {
             lx = SL + Move[0];

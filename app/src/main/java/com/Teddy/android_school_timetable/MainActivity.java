@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
                     case MotionEvent.ACTION_DOWN:
                         if (table.Is_Open()) {
                             if (table.Should_Close_it(event.getX(), event.getY())) {
-                                table.Close_it();
+                                table.Close_class();
                                 table.edit_over();
 
                             //} else if (table.Should_Go(event.getX(), event.getY())) {
@@ -61,7 +61,10 @@ public class MainActivity extends AppCompatActivity {
                     case MotionEvent.ACTION_MOVE:
                         if (table.get_One() != null && (w != table.get_One().week || (t < table.get_One().time1 || t > table.get_One().time2))) {
                             table.Release_class();
-                        } else
+                        }else if(table.get_One() != table.get_Pointed(w,t)) {
+                            table.Press_classs();
+                        }
+                        else
                             return false;
                         break;
                     case MotionEvent.ACTION_UP:
@@ -89,15 +92,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
                 table.addClass(0,0,1,"126663","123","123", Color.GRAY,false);
 
                 table.addClass(6,2,3,"123","123","123", Color.GRAY,false);
-
-                table.addClass(3,2,2,"测试","测试老师","一个教室", Color.DKGRAY,false);
+                table.addClass(3,1,1,"测试4","测试老师","一个教室", Color.DKGRAY,false);
+                table.addClass(3,2,2,"测试0","测试老师","一个教室", Color.GREEN,false);
+                table.addClass(4,2,2,"测试1","测试老师","一个教室", Color.GRAY,false);
+                table.addClass(2,2,2,"测试2","测试老师","一个教室", Color.WHITE,false);
+                table.addClass(3,3,3,"测试3","测试老师","一个教室", Color.BLACK,false);
                 table.flash();
             }
         }).start();

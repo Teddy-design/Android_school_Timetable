@@ -190,18 +190,23 @@ public class Timetable extends View {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         Height = getMeasuredHeight();
         Width = getMeasuredWidth();
-        try {
-            OneH = Height / (Aclass + Mclass);
-            OneW = Width / 7;
-        } catch (Exception e) {
-            Toast.makeText(context, "课程数量设置异常", Toast.LENGTH_LONG).show();
-        }
 
         init_Paint();
         init_N_class();
-        //invalidate();
-
     }
+
+    @Override
+    public void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        Height = getMeasuredHeight();
+        Width = getMeasuredWidth();
+
+        init_Paint();
+        init_N_class();
+        invalidate();
+    }
+
+
 
     public void flash() {
         invalidate();
@@ -220,9 +225,12 @@ public class Timetable extends View {
 
         Has = new ShowClass[(Mclass + Aclass) * 7];
         Cnum = new ArrayList<>();
-        OneH = Height / (Aclass + Mclass);
-        OneW = Width / 7;
-
+        try {
+            OneH = Height / (Aclass + Mclass);
+            OneW = Width / 7;
+        } catch (Exception e) {
+            Toast.makeText(context, "课程数量设置异常", Toast.LENGTH_LONG).show();
+        }
         EL = (float) Width / 5;
         ER = (float) (Width * 0.8);
         ET = (float) (Height * 0.25);
@@ -319,6 +327,8 @@ public class Timetable extends View {
      */
     public ShowClass get_Pointed(int w, int t) {
 
+        if(opening)
+            return null;
         one = null;
         if (Has[t * 7 + w] != null) {
             one = Has[t * 7 + w];
@@ -363,7 +373,7 @@ public class Timetable extends View {
         moving = true;//移动状态
         opening = true;
         open_flag=true;
-        chicking = false;
+
         ////////////////////
         ML = EL - SL;
         MT = ET - ST;
@@ -390,6 +400,7 @@ public class Timetable extends View {
                 if (!open_flag) {
                     Throwable Terro = new Throwable("打开打断");
                     e.onError(Terro);
+                    break;
                 } else {
                     if (C_times > (C_speed / 2)) {
                         for (int n = 0; n < 4; n++) {
@@ -402,7 +413,6 @@ public class Timetable extends View {
                         }
                     }
                 }
-
                 e.onNext(C_times);
                 sleep((C_speed - C_times) / 50);
             }
@@ -433,7 +443,7 @@ public class Timetable extends View {
                     public void onError(@NonNull Throwable e) {
                         moving=false;
                         if (debug)
-                            Log.e("open", "onError : value : " + e.getMessage() + "\n");
+                            Log.e("open", "onError : value : " + e.getMessage() +"\n");
 
                     }
 
@@ -456,11 +466,13 @@ public class Timetable extends View {
      * 课程关闭，可打断打开过程
      */
     public void Close_class() {
-        if (debug)
-            Log.d("Close_class", "start" + "\n");
+
         if(open_flag)//打断
             open_flag=false;
-
+        if(!opening)
+            return;
+        if (debug)
+            Log.d("Close_class", "start" + "\n");
         moving=true;
         // 第一步：初始化Observable
         Observable.create((ObservableOnSubscribe<Integer>) e -> {
@@ -479,7 +491,6 @@ public class Timetable extends View {
                         Move[n] -= speed[n];
                     }
                 }
-
                 e.onNext(C_times);
                 sleep((C_speed - C_times) / 60);
             }
@@ -522,7 +533,7 @@ public class Timetable extends View {
                         invalidate();
                         //setLayerType(View.LAYER_TYPE_NONE, null);
                         if (debug)
-                            Log.d("close", "onComplete" + "\n");
+                            Log.d("close", "onComplete" +"\n");
                     }
                 });
 
@@ -648,22 +659,20 @@ public class Timetable extends View {
                         if (debug)
                             Log.d("Release_class", "onError : value : " + e.getMessage() + "\n");
                         moving = false;
+                        chicking = true;
                     }
 
                     @Override
                     public void onComplete() {
-
-                        mDisposable.dispose();
                         moving = false;
                         chicking = false;
-
                         if (one != null)
                             one.onchick = false;
                         one = null;
-
                         invalidate();
                         if (debug)
                             Log.d("Release_class", "onComplete" + "\n");
+                        mDisposable.dispose();
                     }
                 });
 
@@ -725,15 +734,6 @@ public class Timetable extends View {
 
     }
 
-    public void delClass(int w, int t) {//需要改
-        ShowClass a = Has[t * 7 + w];
-        for (int i = a.time1; i <= a.time2; i++)
-            Has[i] = null;
-        for (int i = 0; i < Cnum.size(); i++) {
-            if (Cnum.get(i) == a.time1 * 7 + a.week)
-                Cnum.remove(i);
-        }
-    }
 
 
 
@@ -761,7 +761,7 @@ public class Timetable extends View {
     }
 
     public boolean Should_Close_it(float x, float y) {
-        return !(Width / 6 < x) || !(x < (Width * 5) / 6) || !((Height) / 4 < y) || !(y < (Height * 3) / 4);
+        return !(EL < x) || !(x < ER) || !(ET < y) || !(y < EB / 4);
     }
 
     public boolean Should_Edit_it(float x, float y) {
@@ -779,12 +779,7 @@ public class Timetable extends View {
     }
 
 
-    @Override
-    public void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
-        Height = getMeasuredHeight();
-        auto_set_textsize();
-    }
+
 
 
     private Bitmap mBitmapToBlur, mBlurredBitmap;
@@ -875,7 +870,7 @@ public class Timetable extends View {
             rx = SR + Move[2];
 
             by = SB + Move[3];
-            int db = Width / 18;
+            int db = OneH / 6;
             //Opaint.setColor( o_text_color);
             //canvas.drawRoundRect(Math.min(lx + db, Width / 2)-2, Math.min(ty + db, Height / 2)-2, Math.max(rx - db, Width / 2)+2, Math.max(by - db, Height / 2)+2, 8, 8, Opaint);
             Main_Paint.setColor(one.color);
@@ -887,23 +882,23 @@ public class Timetable extends View {
             //Opaint.setColor(one.color);
             //setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
-            float dx = lx + db;
+            float dx = lx + db*0.7f;
 
             if (C_times < (C_speed / 2)) {
-                canvas.translate(dx, ty + Width / 11);
+                canvas.translate(dx, ty + OneH / 5f);
                 one.p_name.draw(canvas);
-                canvas.translate(0, (by - ty) * 3 / 10);
+                canvas.translate(0, (by - ty) * 0.3f);
                 one.p_teacher.draw(canvas);
-                canvas.translate(0, (by - ty) * 3 / 10);
+                canvas.translate(0, (by - ty) * 0.3f);
                 one.p_room.draw(canvas);
-                canvas.translate(0, -(by - ty) * 3 / 5);
-                canvas.translate(-dx, -(tempt1 * OneH + ST + Width / 11));
+                canvas.translate(0, -(by - ty) * 0.6f);
+                canvas.translate(-dx, -(tempt1 * OneH + ST + OneH / 5f));
             } else {
                 canvas.translate(one.week * OneW + 1 + Move[0], (one.time1) * OneH + Move[1]);
                 one.n_name.draw(canvas);
-                canvas.translate(0, (OneH * (7 + one.time2 - one.time1) / 11));
+                canvas.translate(0, (OneH * (7 + one.time2 - one.time1) / 11f));
                 one.n_room.draw(canvas);
-                canvas.translate(0, -(OneH * (7 + one.time2 - one.time1) / 11));
+                canvas.translate(0, -(OneH * (7 + one.time2 - one.time1) / 11f));
                 canvas.translate(-(one.week * OneW + 1 + Move[0]), -(one.time1) * OneH + Move[1]);
             }
 

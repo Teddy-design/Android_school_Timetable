@@ -100,7 +100,7 @@ public class Timetable extends View {
     private float by;
 
     //动画更新次数,越大越慢
-    private final int C_speed = 60;
+    private final int C_speed = 90;
 
     //移动距离
     private float[] Move;
@@ -167,7 +167,6 @@ public class Timetable extends View {
         moving = false;
 
 
-
         RxJavaPlugins.setErrorHandler(throwable -> {
             //throwable.printStackTrace();
             //啥也不做
@@ -205,7 +204,6 @@ public class Timetable extends View {
         init_N_class();
         invalidate();
     }
-
 
 
     public void flash() {
@@ -327,7 +325,7 @@ public class Timetable extends View {
      */
     public ShowClass get_Pointed(int w, int t) {
 
-        if(opening)
+        if (moving)
             return null;
         one = null;
         if (Has[t * 7 + w] != null) {
@@ -368,11 +366,11 @@ public class Timetable extends View {
         if (one != null) {
             one.onchick = true;
             bur_first = true;
-        }else
+        } else
             return;
         moving = true;//移动状态
         opening = true;
-        open_flag=true;
+        open_flag = true;
 
         ////////////////////
         ML = EL - SL;
@@ -392,29 +390,21 @@ public class Timetable extends View {
 
         // 第一步：初始化Observable
         Observable.create((ObservableOnSubscribe<Integer>) e -> {
-            if (Move == null || speed == null || one == null) {
-                Throwable Terro = new Throwable("打开错误");
-                e.onError(Terro);
-            }
+
             for (C_times = C_speed; C_times >= 0; C_times--) {
                 if (!open_flag) {
                     Throwable Terro = new Throwable("打开打断");
                     e.onError(Terro);
                     break;
                 } else {
-                    if (C_times > (C_speed / 2)) {
-                        for (int n = 0; n < 4; n++) {
-                            Move[n] += 2 * speed[n];
-                        }
-                        C_times -= 1;
-                    } else {
-                        for (int n = 0; n < 4; n++) {
-                            Move[n] += speed[n];
-                        }
+                    moving = true;
+                    for (int n = 0; n < 4; n++) {
+                        Move[n] += speed[n];
                     }
+                    e.onNext(C_times);
+                    sleep((C_speed - C_times) / 30);
                 }
-                e.onNext(C_times);
-                sleep((C_speed - C_times) / 50);
+
             }
             e.onComplete();
         }).subscribeOn(Schedulers.computation())
@@ -435,23 +425,23 @@ public class Timetable extends View {
                         if (Temp_times < 0) {
                             mDisposable.dispose();
                         }
-
+                        if (debug)
+                            Log.d("open", "onNext"+"\n");
                         invalidate();
                     }
 
                     @Override
                     public void onError(@NonNull Throwable e) {
-                        moving=false;
+                        moving = false;
                         if (debug)
-                            Log.e("open", "onError : value : " + e.getMessage() +"\n");
+                            Log.e("open", "onError : value : " + e.getMessage() + "\n");
 
                     }
 
                     @Override
                     public void onComplete() {
                         mDisposable.dispose();
-                        moving=false;
-                        invalidate();
+                        moving = false;
                         if (debug)
                             Log.d("open", "onComplete" + "\n");
                     }
@@ -466,34 +456,32 @@ public class Timetable extends View {
      * 课程关闭，可打断打开过程
      */
     public void Close_class() {
-
-        if(open_flag)//打断
-            open_flag=false;
-        if(!opening)
+        if (!opening)
             return;
+        if (open_flag)//打断
+            open_flag = false;
+        moving = true;
         if (debug)
             Log.d("Close_class", "start" + "\n");
-        moving=true;
+
         // 第一步：初始化Observable
         Observable.create((ObservableOnSubscribe<Integer>) e -> {
-            if (Move == null || speed == null || one == null) {
-                Throwable Terro = new Throwable("关闭打断");
-                e.onError(Terro);
-            }
+
             for (; C_times <= C_speed; C_times++) {
-                if (C_times > (C_speed / 2)) {
-                    for (int n = 0; n < 4; n++) {
-                        Move[n] -= 2 * speed[n];
-                    }
-                    C_times += 1;
-                } else {
-                    for (int n = 0; n < 4; n++) {
-                        Move[n] -= speed[n];
-                    }
+                for (int n = 0; n < 4; n++) {
+                    Move[n] -= speed[n];
                 }
+                moving = true;
                 e.onNext(C_times);
-                sleep((C_speed - C_times) / 60);
+                sleep((C_times) / 40);
             }
+
+            if (one != null)
+                one.onchick = false;
+
+            opening = false;
+
+            sleep(300);
             e.onComplete();
         }).subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -509,10 +497,11 @@ public class Timetable extends View {
 
                     @Override
                     public void onNext(@NonNull Integer f) {
+                        invalidate();
                         if (f > C_speed) {
                             mDisposable.dispose();
                         }
-                        invalidate();
+
                     }
 
                     @Override
@@ -524,16 +513,16 @@ public class Timetable extends View {
 
                     @Override
                     public void onComplete() {
-                        if (one != null)
-                            one.onchick = false;
-                        one = null;
-                        mDisposable.dispose();
                         moving = false;
                         opening = false;
+                        one = null;
+
                         invalidate();
+
+                        mDisposable.dispose();
                         //setLayerType(View.LAYER_TYPE_NONE, null);
                         if (debug)
-                            Log.d("close", "onComplete" +"\n");
+                            Log.d("close", "onComplete" + "\n");
                     }
                 });
 
@@ -545,11 +534,11 @@ public class Timetable extends View {
      * 模拟按压变小
      */
     public void Press_classs() {
-
-        if (moving || one == null)
+        if (moving ||opening)
             return;
-        press_flag=true;
-        moving = true;
+
+        press_flag = true;
+
         chicking = true;
         one.onchick = true;
         Move = new float[]{0, 0, 0, 0};
@@ -559,10 +548,12 @@ public class Timetable extends View {
             @Override
             public void subscribe(@NonNull ObservableEmitter<Integer> e) throws Exception {
                 for (int i = 1; i < 8; i++) {
-                    if (!press_flag){
+                    if (!press_flag) {
                         e.onError(new Throwable("按压打断"));
-                    }else
+                    } else{
+                        moving = true;
                         Move[0] = i;
+                    }
 
                     e.onNext(i);
                     sleep(8);
@@ -592,9 +583,9 @@ public class Timetable extends View {
 
                     @Override
                     public void onError(@NonNull Throwable e) {
+                        moving = false;
                         if (debug)
                             Log.e("Press_classs", "onError : value : " + e.getMessage() + "\n");
-                        moving=false;
                         mDisposable.dispose();
                     }
 
@@ -615,11 +606,10 @@ public class Timetable extends View {
      */
     public void Release_class() {
 
-        if (one == null || !chicking )
+        if (one == null || !chicking|| moving||opening)
             return;
-        press_flag=false;
-        if(moving)
-            return;
+        press_flag = false;
+
         moving = true;
         if (debug)
             Log.d("Release_class", "start" + "\n");
@@ -735,10 +725,6 @@ public class Timetable extends View {
     }
 
 
-
-
-
-
     public void Quick_Close_it() {
         if (debug)
             Log.d("VIEW", "关闭所有已打开课程");
@@ -761,7 +747,7 @@ public class Timetable extends View {
     }
 
     public boolean Should_Close_it(float x, float y) {
-        return !(EL < x) || !(x < ER) || !(ET < y) || !(y < EB / 4);
+        return !(EL-5 < x) || !(x < ER+5) || !(ET+5 < y) || !(y < EB-5);
     }
 
     public boolean Should_Edit_it(float x, float y) {
@@ -777,9 +763,6 @@ public class Timetable extends View {
     public boolean Is_Open() {
         return opening;
     }
-
-
-
 
 
     private Bitmap mBitmapToBlur, mBlurredBitmap;
@@ -830,22 +813,19 @@ public class Timetable extends View {
 
         ////////////////
 
-        if(one==null){
+        if (one == null) {
             return;
         }
 
         if (chicking) {
             lx = SL + Move[0];
-
             ty = ST + Move[0];
-
             rx = SR - Move[0];
-
             by = SB - Move[0];
 
             Main_Paint.setColor(one.color);
-            canvas.drawRoundRect(lx, ty, rx, by, 8 + Move[0], 8 + Move[0], Main_Paint);
 
+            canvas.drawRoundRect(lx, ty, rx, by, 8 + Move[0], 8 + Move[0], Main_Paint);
             N_text_paint.setTextSize(N_text_size - Move[0] / 2);
 
             canvas.translate(one.week * OneW + Move[0] / 2, (one.time1) * OneH + Move[0] / 2);
@@ -864,25 +844,23 @@ public class Timetable extends View {
             canvas.drawBitmap(mBlurredBitmap, 0, 0, null);
 
             lx = SL + Move[0];
-
             ty = ST + Move[1];
-
             rx = SR + Move[2];
-
             by = SB + Move[3];
+
             int db = OneH / 6;
             //Opaint.setColor( o_text_color);
             //canvas.drawRoundRect(Math.min(lx + db, Width / 2)-2, Math.min(ty + db, Height / 2)-2, Math.max(rx - db, Width / 2)+2, Math.max(by - db, Height / 2)+2, 8, 8, Opaint);
             Main_Paint.setColor(one.color);
             canvas.drawRoundRect(lx, ty, rx, by, 8, 8, Main_Paint);
-            Main_Paint.setColor(Color.WHITE);
+            Main_Paint.setColor(Color.argb((int) (50+200 / (C_times*2 + 3)), 255, 255, 255));
             canvas.drawRoundRect(lx, ty, rx, by - 2 * db, 8, 8, Main_Paint);
             Main_Paint.setColor(one.color);
 
             //Opaint.setColor(one.color);
             //setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
-            float dx = lx + db*0.7f;
+            float dx = lx + db * 0.7f;
 
             if (C_times < (C_speed / 2)) {
                 canvas.translate(dx, ty + OneH / 5f);

@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Trace;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -34,13 +35,22 @@ public class MainActivity extends AppCompatActivity {
 
         Timetable table = findViewById(R.id.Time_table);
         table.setOnTouchListener(new View.OnTouchListener() {
+            boolean Pointed=false;//防止多指混乱
+            float x=0f;
+            float y=0f;
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+
+
                 int w = (int) event.getX() / table.OneW;
                 int t = (int) event.getY() / table.OneH;
                 Log.d("action:",""+event.getAction());
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
+                        if(!Pointed)
+                            Pointed= true;
+                        else
+                            break;
                         if (table.Is_Open()) {
                             if (table.Should_Close_it(event.getX(), event.getY())) {
                                 table.Close_class();
@@ -59,6 +69,12 @@ public class MainActivity extends AppCompatActivity {
                         }
                         break;
                     case MotionEvent.ACTION_MOVE:
+                        if ((Math.abs(event.getX()-x)<5)&&(Math.abs(event.getY()-y)<5))
+                            break;
+                        else{
+                            x=event.getX();
+                            y=event.getY();
+                        }
                         if (table.get_One() != null && (w != table.get_One().week || (t < table.get_One().time1 || t > table.get_One().time2))) {
                             table.Release_class();
                         }else if(table.get_One() != table.get_Pointed(w,t)) {
@@ -68,7 +84,11 @@ public class MainActivity extends AppCompatActivity {
                             return false;
                         break;
                     case MotionEvent.ACTION_UP:
-                        if (table.get_One() != null) {
+                        if(Pointed)
+                            Pointed= false;
+                        else
+                            break;
+                        if (table.get_One() != null&&!table.Is_Open()) {
                             if (table.get_One().week != w || table.get_One().time1 > t || table.get_One().time2 < t)
                                 table.Release_class();
                             else

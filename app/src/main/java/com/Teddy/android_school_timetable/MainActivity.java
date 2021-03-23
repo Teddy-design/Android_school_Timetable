@@ -35,23 +35,22 @@ public class MainActivity extends AppCompatActivity {
 
         Timetable table = findViewById(R.id.Time_table);
         table.setOnTouchListener(new View.OnTouchListener() {
-            boolean Pointed=false;//防止多指混乱
-            float x=0f;
-            float y=0f;
+
+            boolean Opened=false;//防止关闭时打开
             @Override
             public boolean onTouch(View v, MotionEvent event) {
 
-
                 int w = (int) event.getX() / table.OneW;
                 int t = (int) event.getY() / table.OneH;
-                Log.d("action:",""+event.getAction());
+
+                if(event.getActionIndex()!=0)//单指操作
+                    return true;
                 switch (event.getAction()) {
+
                     case MotionEvent.ACTION_DOWN:
-                        if(!Pointed)
-                            Pointed= true;
-                        else
-                            break;
+
                         if (table.Is_Open()) {
+                            Opened=true;
                             if (table.Should_Close_it(event.getX(), event.getY())) {
                                 table.Close_class();
                                 table.edit_over();
@@ -64,44 +63,40 @@ public class MainActivity extends AppCompatActivity {
 
                             }
                         }else{
+                            Opened=false;
                             table.get_Pointed(w,t);
                             table.Press_classs();
                         }
                         break;
                     case MotionEvent.ACTION_MOVE:
-                        if ((Math.abs(event.getX()-x)<5)&&(Math.abs(event.getY()-y)<5))
-                            break;
-                        else{
-                            x=event.getX();
-                            y=event.getY();
-                        }
+
                         if (table.get_One() != null && (w != table.get_One().week || (t < table.get_One().time1 || t > table.get_One().time2))) {
                             table.Release_class();
-                        }else if(table.get_One() != table.get_Pointed(w,t)) {
+                        }
+                        if(table.get_One() != table.get_Pointed(w,t)&&!Opened) {
                             table.Press_classs();
                         }
                         else
                             return false;
                         break;
                     case MotionEvent.ACTION_UP:
-                        if(Pointed)
-                            Pointed= false;
-                        else
-                            break;
-                        if (table.get_One() != null&&!table.Is_Open()) {
+
+                        if (table.get_One() != null) {
                             if (table.get_One().week != w || table.get_One().time1 > t || table.get_One().time2 < t)
                                 table.Release_class();
-                            else
+                            else if(!Opened)
                                 table.Open_class();
+
+
                         }
-                        table.performClick();
+                        //table.performClick();
                         break;
                     case MotionEvent.ACTION_CANCEL:
                         if (table.get_One() != null)
                             table.Release_class();
                         break;
                     default:
-                        table.Quick_Close_it();
+                        //table.Quick_Close_it();
                         //findViewById(R.id.editbu).setVisibility(View.GONE);
                         break;
                 }
@@ -127,17 +122,17 @@ public class MainActivity extends AppCompatActivity {
                 table.addClass(1,2,2,"测试2","测试老师","一个教室", Color.WHITE,false);
                 table.addClass(2,2,2,"测试3","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,2,2,"测试0","测试老师","一个教室", Color.GREEN,false);
-                table.addClass(4,2,2,"测试1","测试老师","一个教室", Color.GRAY,false);
-                table.addClass(5,2,2,"测试1","测试老师","一个教室", Color.BLUE,false);
+                table.addClass(4,2,2,"233","测试老师","一个教室", Color.GRAY,false);
+                table.addClass(5,2,2,"123","测试老师","一个教室", Color.BLUE,false);
 
                 table.addClass(1,3,3,"测试2","测试老师","一个教室", Color.WHITE,false);
                 table.addClass(2,3,3,"测试3","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,3,3,"测试0","测试老师","一个教室", Color.GREEN,false);
-                table.addClass(4,3,3,"测试1","测试老师","一个教室", Color.GRAY,false);
-                table.addClass(5,3,3,"测试1","测试老师","一个教室", Color.BLUE,false);
+                table.addClass(4,3,3,"332","测试老师","一个教室", Color.GRAY,false);
+                table.addClass(5,3,3,"321","测试老师","一个教室", Color.BLUE,false);
 
                 table.addClass(1,4,4,"测试2","测试老师","一个教室", Color.WHITE,false);
-                table.addClass(2,4,4,"测试3","测试老师","一个教室", Color.DKGRAY,false);
+                table.addClass(2,4,4,"测试333","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,4,4,"测试0","测试老师","一个教室", Color.GREEN,false);
                 table.addClass(4,4,4,"测试1","测试老师","一个教室", Color.GRAY,false);
                 table.addClass(5,4,4,"测试1","测试老师","一个教室", Color.BLUE,false);

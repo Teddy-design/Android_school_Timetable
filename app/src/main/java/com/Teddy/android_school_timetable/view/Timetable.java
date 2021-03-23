@@ -3,13 +3,18 @@ package com.Teddy.android_school_timetable.view;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.content.res.XmlResourceParser;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorFilter;
 import android.graphics.ColorSpace;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.VectorDrawable;
 import android.os.Looper;
 import android.os.Trace;
 import android.text.Layout;
@@ -29,6 +34,7 @@ import androidx.renderscript.Allocation;
 import androidx.renderscript.Element;
 import androidx.renderscript.RenderScript;
 import androidx.renderscript.ScriptIntrinsicBlur;
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
 
 
 import com.Teddy.android_school_timetable.R;
@@ -52,7 +58,7 @@ import static android.os.SystemClock.sleep;
 
 public class Timetable extends View {
 
-
+    String TAG= "TimeTable";
     boolean debug = true;
 
     public ArrayList<Integer> Cnum;
@@ -67,12 +73,17 @@ public class Timetable extends View {
     public int OneH;//一个高
     public int OneW;//一个宽
 
-    public boolean chicking;//点击开始
+    public boolean pressing;//按压开始
     public boolean opening;//打开开始
     public boolean moving;
     private boolean edit;
 
-    private boolean bur_first;//只模糊一次
+    private boolean blur_first;//只模糊一次
+    private RenderScript mRenderScript;
+    private ScriptIntrinsicBlur mBlurScript;
+    private Allocation mBlurInput, mBlurOutput;
+    private Canvas blur_canvas;
+    private Bitmap mBitmapToBlur, mBlurredBitmap;
 
     private ShowClass one;//被点击的
     //起始位置
@@ -130,7 +141,7 @@ public class Timetable extends View {
 
     private TextPaint P_text_paint;
 
-    Bitmap editbp;
+    VectorDrawableCompat edit_button;//编辑图标
 
     private Paint Main_Paint;
 
@@ -163,24 +174,20 @@ public class Timetable extends View {
         setCnum(4, 4);
         setLayerType(LAYER_TYPE_HARDWARE, null);
 
+        pressing=false;
         opening = false;
         moving = false;
+        press_flag=false;
+        open_flag=false;
 
+        init_image();
 
         RxJavaPlugins.setErrorHandler(throwable -> {
             //throwable.printStackTrace();
             //啥也不做
         });
 
-        /////////////////////////////////////////////
-        Drawable drawable = ContextCompat.getDrawable(context, R.mipmap.rr);
-        editbp = Bitmap.createBitmap(1080, 1920,
-                Bitmap.Config.ARGB_8888);
-        Canvas bp = new Canvas(editbp);
-        drawable.setBounds(0, 0, bp.getWidth(), bp.getHeight());
-        drawable.draw(bp);
 
-        //setCnum(4, 4);
 
     }
 
@@ -192,6 +199,7 @@ public class Timetable extends View {
 
         init_Paint();
         init_N_class();
+        init_blur();
     }
 
     @Override
@@ -205,11 +213,26 @@ public class Timetable extends View {
         invalidate();
     }
 
-
+    /**
+     *
+     * @author 20535
+     * @time 2021/3/22 10:43
+     * 刷新
+     */
     public void flash() {
         invalidate();
     }
+    /**
+     *
+     * @author 20535
+     * @time 2021/3/22 10:44
+     * 初始化按键的照片
+     */
+    private void init_image(){
 
+        edit_button = VectorDrawableCompat.create(context.getResources(),R.drawable.ic_edit,context.getTheme());
+
+    }
     /**
      * @author 20535
      * @time 2021/3/9 15:27
@@ -257,7 +280,7 @@ public class Timetable extends View {
         Main_Paint.setSubpixelText(true);
         Main_Paint.setStyle(Paint.Style.FILL);
 
-        auto_set_textsize();
+        auto_set_text();
     }
 
     /**
@@ -265,7 +288,7 @@ public class Timetable extends View {
      * @time 2021/3/9 11:18
      * 根据屏幕宽度选字的大小
      */
-    private void auto_set_textsize() {
+    private void auto_set_text() {
         DisplayMetrics displayMetrics = new DisplayMetrics();
         WindowManager manager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         manager.getDefaultDisplay().getMetrics(displayMetrics);//获取屏幕参数
@@ -273,6 +296,9 @@ public class Timetable extends View {
         P_text_size = displayMetrics.widthPixels / 20;
         N_text_paint.setTextSize(N_text_size);
         P_text_paint.setTextSize(P_text_size);
+
+        set_N_TextColor(Color.WHITE);
+        set_P_TextColor(Color.BLACK);
 
     }
 
@@ -355,35 +381,30 @@ public class Timetable extends View {
      * 点开某课程的过程
      */
     public void Open_class() {
+        if(opening||(moving&&!pressing))
+            return;
         if (debug)
             Log.d("Open_class", "start" + "\n");
-        if (moving && chicking) {//打断点击
-            chicking = false;
+        if (moving && pressing) {//打断点击
             press_flag = false;
         }
-        if (opening)
-            return;
+
         if (one != null) {
+            pressing = false;
             one.onchick = true;
-            bur_first = true;
+            moving = true;//移动状态
+            opening = true;
+            open_flag = true;
+            blur_first = true;
         } else
             return;
-        moving = true;//移动状态
-        opening = true;
-        open_flag = true;
+
 
         ////////////////////
         ML = EL - SL;
         MT = ET - ST;
         MR = ER - SR;
         MB = EB - SB;
-
-        float[] Dis = {ML, MT, MR, MB};
-        float temp = Dis[3];
-        for (int i = 0; i < 3; i++) {
-            if (temp < Dis[i])
-                temp = Dis[i];
-        }
 
         Move = new float[]{0, 0, 0, 0};
         speed = new float[]{ML / C_speed, MT / C_speed, MR / C_speed, MB / C_speed};
@@ -392,20 +413,31 @@ public class Timetable extends View {
         Observable.create((ObservableOnSubscribe<Integer>) e -> {
 
             for (C_times = C_speed; C_times >= 0; C_times--) {
+
                 if (!open_flag) {
                     Throwable Terro = new Throwable("打开打断");
                     e.onError(Terro);
                     break;
                 } else {
                     moving = true;
-                    for (int n = 0; n < 4; n++) {
-                        Move[n] += speed[n];
+                    if (C_speed/2>C_times) {
+                        for (int n = 0; n < 4; n++) {
+                            Move[n] += speed[n];
+                        }
+                    }else{
+                        for (int n = 0; n < 4; n++) {
+                            Move[n] += 2*speed[n];
+                        }
+                        C_times--;
                     }
+                    sleep((C_speed - C_times)/20);
                     e.onNext(C_times);
-                    sleep((C_speed - C_times) / 30);
+
                 }
 
             }
+
+
             e.onComplete();
         }).subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -425,8 +457,6 @@ public class Timetable extends View {
                         if (Temp_times < 0) {
                             mDisposable.dispose();
                         }
-                        if (debug)
-                            Log.d("open", "onNext"+"\n");
                         invalidate();
                     }
 
@@ -472,16 +502,11 @@ public class Timetable extends View {
                     Move[n] -= speed[n];
                 }
                 moving = true;
-                e.onNext(C_times);
+
                 sleep((C_times) / 40);
+                e.onNext(C_times);
             }
 
-            if (one != null)
-                one.onchick = false;
-
-            opening = false;
-
-            sleep(300);
             e.onComplete();
         }).subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -515,8 +540,11 @@ public class Timetable extends View {
                     public void onComplete() {
                         moving = false;
                         opening = false;
+                        if (one != null)
+                            one.onchick = false;
                         one = null;
-
+                        opening = false;
+                        
                         invalidate();
 
                         mDisposable.dispose();
@@ -534,12 +562,12 @@ public class Timetable extends View {
      * 模拟按压变小
      */
     public void Press_classs() {
-        if (moving ||opening)
+        if (moving ||opening||one==null)
             return;
 
         press_flag = true;
 
-        chicking = true;
+        pressing = true;
         one.onchick = true;
         Move = new float[]{0, 0, 0, 0};
         if (debug)
@@ -584,6 +612,7 @@ public class Timetable extends View {
                     @Override
                     public void onError(@NonNull Throwable e) {
                         moving = false;
+                        pressing = false;
                         if (debug)
                             Log.e("Press_classs", "onError : value : " + e.getMessage() + "\n");
                         mDisposable.dispose();
@@ -606,7 +635,7 @@ public class Timetable extends View {
      */
     public void Release_class() {
 
-        if (one == null || !chicking|| moving||opening)
+        if (one == null || !pressing|| moving||opening)
             return;
         press_flag = false;
 
@@ -617,6 +646,7 @@ public class Timetable extends View {
             @Override
             public void subscribe(@NonNull ObservableEmitter<Integer> e) throws Exception {
                 for (int i = 8; i > 0; i--) {
+                    moving = true;
                     Move[0] = i;
                     e.onNext(i);
                     sleep(12);
@@ -649,13 +679,13 @@ public class Timetable extends View {
                         if (debug)
                             Log.d("Release_class", "onError : value : " + e.getMessage() + "\n");
                         moving = false;
-                        chicking = true;
+                        pressing = false;
                     }
 
                     @Override
                     public void onComplete() {
                         moving = false;
-                        chicking = false;
+                        pressing = false;
                         if (one != null)
                             one.onchick = false;
                         one = null;
@@ -685,15 +715,7 @@ public class Timetable extends View {
         Addclass.room = room;
         Addclass.onchick = false;
         if (night) {
-            int r = 0xFF & tempcolor;
-            int g = 0xFF00 & tempcolor;
-            g >>= 8;
-            int b = 0xFF0000 & tempcolor;
-            b >>= 16;
-            r /= 2;
-            g /= 2;
-            b /= 2;
-            Addclass.color = Color.argb(255, r, g, b);
+            Addclass.color=Change_color(tempcolor);
         } else
             Addclass.color = (tempcolor);
 
@@ -732,6 +754,10 @@ public class Timetable extends View {
         if (one != null) {
             one.onchick = false;
             one = null;
+            opening=false;
+            open_flag=false;
+            pressing=false;
+            press_flag=false;
         }
 
         invalidate();
@@ -763,25 +789,26 @@ public class Timetable extends View {
     public boolean Is_Open() {
         return opening;
     }
+    public boolean Is_Move() {
+        return moving;
+    }
 
 
-    private Bitmap mBitmapToBlur, mBlurredBitmap;
 
     @Override
     public void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         // canvas.drawLine(0, OneH * Mclass, Width, OneH * Mclass, paint);//中午
 
-        canvas.save();
-        prepare();
-        canvas.drawBitmap(editbp, 0, 0, Main_Paint);
-        if (opening && bur_first)
-            bur_canvas.drawBitmap(editbp, 0, 0, Main_Paint);
+        blur_canvas.drawColor(0, PorterDuff.Mode.CLEAR);
         for (int i = 0; i < Cnum.size(); i++) {
-
             ShowClass a = Has[Cnum.get(i)];
-            if (a.onchick)
+
+            if (a.onchick){
                 continue;
+            }
+
+
             if (!opening) {
                 Main_Paint.setColor(a.color);
                 canvas.drawRoundRect(a.week * OneW, a.time1 * OneH, (a.week + 1) * OneW, (a.time2 + 1) * OneH, 15, 15, Main_Paint);
@@ -791,17 +818,16 @@ public class Timetable extends View {
                 a.n_room.draw(canvas);
                 canvas.translate(0, -(OneH * (7 + a.time2 - a.time1) / 11));
                 canvas.translate(-(a.week * OneW + 1), -(a.time1) * OneH);
-            }
-            ///////////////////
-            if (opening && bur_first) {
+            } else if (blur_first) {
+
                 Main_Paint.setColor(a.color);
-                bur_canvas.drawRoundRect(a.week * OneW, a.time1 * OneH, (a.week + 1) * OneW, (a.time2 + 1) * OneH, 15, 15, Main_Paint);
-                bur_canvas.translate(a.week * OneW + 1, (a.time1) * OneH);
-                a.n_name.draw(bur_canvas);
-                bur_canvas.translate(0, (OneH * (7 + a.time2 - a.time1) / 11));
-                a.n_room.draw(bur_canvas);
-                bur_canvas.translate(0, -(OneH * (7 + a.time2 - a.time1) / 11));
-                bur_canvas.translate(-(a.week * OneW + 1), -(a.time1) * OneH);
+                blur_canvas.drawRoundRect(a.week * OneW, a.time1 * OneH, (a.week + 1) * OneW, (a.time2 + 1) * OneH, 15, 15, Main_Paint);
+                blur_canvas.translate(a.week * OneW + 1, (a.time1) * OneH);
+                a.n_name.draw(blur_canvas);
+                blur_canvas.translate(0, (OneH * (7 + a.time2 - a.time1) / 11));
+                a.n_room.draw(blur_canvas);
+                blur_canvas.translate(0, -(OneH * (7 + a.time2 - a.time1) / 11));
+                blur_canvas.translate(-(a.week * OneW + 1), -(a.time1) * OneH);
 
             }
 
@@ -817,7 +843,7 @@ public class Timetable extends View {
             return;
         }
 
-        if (chicking) {
+        if (pressing) {
             lx = SL + Move[0];
             ty = ST + Move[0];
             rx = SR - Move[0];
@@ -836,9 +862,8 @@ public class Timetable extends View {
             canvas.translate(-(one.week * OneW + Move[0] / 2), -(one.time1) * OneH - Move[0] / 2);
 
             N_text_paint.setTextSize(N_text_size);
-        }
-        if (opening) {
-            canvas.restore();
+        } else if (opening) {
+
             blur();
 
             canvas.drawBitmap(mBlurredBitmap, 0, 0, null);
@@ -849,20 +874,19 @@ public class Timetable extends View {
             by = SB + Move[3];
 
             int db = OneH / 6;
-            //Opaint.setColor( o_text_color);
-            //canvas.drawRoundRect(Math.min(lx + db, Width / 2)-2, Math.min(ty + db, Height / 2)-2, Math.max(rx - db, Width / 2)+2, Math.max(by - db, Height / 2)+2, 8, 8, Opaint);
             Main_Paint.setColor(one.color);
             canvas.drawRoundRect(lx, ty, rx, by, 8, 8, Main_Paint);
-            Main_Paint.setColor(Color.argb((int) (50+200 / (C_times*2 + 3)), 255, 255, 255));
+            Main_Paint.setColor(Color.argb((int) (255/(C_times+2)), 255, 255, 255));
             canvas.drawRoundRect(lx, ty, rx, by - 2 * db, 8, 8, Main_Paint);
             Main_Paint.setColor(one.color);
+
 
             //Opaint.setColor(one.color);
             //setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
             float dx = lx + db * 0.7f;
 
-            if (C_times < (C_speed / 2)) {
+            if (C_times <= (C_speed / 2)) {
                 canvas.translate(dx, ty + OneH / 5f);
                 one.p_name.draw(canvas);
                 canvas.translate(0, (by - ty) * 0.3f);
@@ -870,7 +894,10 @@ public class Timetable extends View {
                 canvas.translate(0, (by - ty) * 0.3f);
                 one.p_room.draw(canvas);
                 canvas.translate(0, -(by - ty) * 0.6f);
-                canvas.translate(-dx, -(tempt1 * OneH + ST + OneH / 5f));
+                canvas.translate(-dx, -(ty + OneH / 5f));
+                edit_button.setTint(Button_color(one.color));
+                edit_button.setBounds((int)((lx+rx)/2-db),(int)(by-2*db),(int)((lx+rx)/2+db),(int)(by));
+                edit_button.draw(canvas);
             } else {
                 canvas.translate(one.week * OneW + 1 + Move[0], (one.time1) * OneH + Move[1]);
                 one.n_name.draw(canvas);
@@ -881,7 +908,7 @@ public class Timetable extends View {
             }
 
 
-            int www = 1 - (Width / 1000);
+            //int www = 1 - (Width / 1000);
             //canvas.drawBitmap(daohang, (lx  + daohang.getWidth()*2-30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
             //canvas.drawBitmap(beiwang, (rx  - beiwang.getWidth()*3+30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
             //if(!edit){
@@ -892,42 +919,59 @@ public class Timetable extends View {
         }
     }
 
-    private void prepare() {
+    private void init_blur() {
         if (mBitmapToBlur == null) {
             mRenderScript = RenderScript.create(context);
             mBlurScript = ScriptIntrinsicBlur.create(mRenderScript, Element.U8_4(mRenderScript));
-            mBlurScript.setRadius(8);
+            mBlurScript.setRadius(12);
 
             mBitmapToBlur = Bitmap.createBitmap(Width, Height,
                     Bitmap.Config.ARGB_8888);
 
-
             mBlurredBitmap = Bitmap.createBitmap(Width, Height,
                     Bitmap.Config.ARGB_8888);
-
 
             mBlurInput = Allocation.createFromBitmap(mRenderScript, mBitmapToBlur,
                     Allocation.MipmapControl.MIPMAP_NONE, Allocation.USAGE_SCRIPT);
             mBlurOutput = Allocation.createTyped(mRenderScript, mBlurInput.getType());
-            bur_canvas = new Canvas(mBitmapToBlur);
+            blur_canvas = new Canvas(mBitmapToBlur);
         }
     }
 
     protected void blur() {
-        if (bur_first) {
+        if (blur_first) {
+
             mBlurInput.copyFrom(mBitmapToBlur);
             mBlurScript.setInput(mBlurInput);
             mBlurScript.forEach(mBlurOutput);
             mBlurOutput.copyTo(mBlurredBitmap);
-            bur_first = !bur_first;
+            blur_first = false;
         }
 
     }
 
+    private int Change_color(int color){
+        int r = 0xFF & color;
+        int g = 0xFF00 & color;
+        int b = 0xFF0000 & color;
+        g >>= 8;
+        b >>= 16;
+        r /=2;
+        g /=2;
+        b /=2;
+        return Color.argb(255, r, g, b);
+    }
+    private int Button_color(int color){
+        int r = 0xFF & color;
+        int g = 0xFF00 & color;
+        int b = 0xFF0000 & color;
+        g >>= 8;
+        b >>= 16;
+        if(r+g+b<400)
+            return Color.WHITE;
+        else
+            return Color.BLACK;
 
-    private RenderScript mRenderScript;
-    private ScriptIntrinsicBlur mBlurScript;
-    private Allocation mBlurInput, mBlurOutput;
-    private Canvas bur_canvas;
+    }
 
 }

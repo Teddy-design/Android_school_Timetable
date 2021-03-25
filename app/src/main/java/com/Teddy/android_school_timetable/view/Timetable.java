@@ -111,7 +111,7 @@ public class Timetable extends View {
     private float by;
 
     //动画更新次数,越大越慢
-    private final int C_speed = 90;
+    private final int C_speed = 25;
 
     //移动距离
     private float[] Move;
@@ -420,7 +420,7 @@ public class Timetable extends View {
                     break;
                 } else {
                     moving = true;
-                    if (C_speed/2>C_times) {
+                    if (5>C_times) {
                         for (int n = 0; n < 4; n++) {
                             Move[n] += speed[n];
                         }
@@ -430,7 +430,7 @@ public class Timetable extends View {
                         }
                         C_times--;
                     }
-                    sleep((C_speed - C_times)/20);
+                    sleep((C_speed - C_times));
                     e.onNext(C_times);
 
                 }
@@ -503,7 +503,7 @@ public class Timetable extends View {
                 }
                 moving = true;
 
-                sleep((C_times) / 40);
+                sleep((C_times) / 10);
                 e.onNext(C_times);
             }
 
@@ -876,7 +876,7 @@ public class Timetable extends View {
             int db = OneH / 6;
             Main_Paint.setColor(one.color);
             canvas.drawRoundRect(lx, ty, rx, by, 8, 8, Main_Paint);
-            Main_Paint.setColor(Color.argb((int) (255/(C_times+2)), 255, 255, 255));
+            Main_Paint.setColor(Color.argb((int) (55+1000/(C_times+6)), 255, 255, 255));
             canvas.drawRoundRect(lx, ty, rx, by - 2 * db, 8, 8, Main_Paint);
             Main_Paint.setColor(one.color);
 

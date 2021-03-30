@@ -72,6 +72,7 @@ public class Timetable extends View {
     private int Aclass;//下午课
     public int OneH;//一个高
     public int OneW;//一个宽
+    public int band;//色带高度
 
     public boolean pressing;//按压开始
     public boolean opening;//打开开始
@@ -111,7 +112,7 @@ public class Timetable extends View {
     private float by;
 
     //动画更新次数,越大越慢
-    private final int C_speed = 25;
+    private final int C_speed = 95;
 
     //移动距离
     private float[] Move;
@@ -351,10 +352,11 @@ public class Timetable extends View {
      */
     public ShowClass get_Pointed(int w, int t) {
 
-        if (moving)
+        if (moving||opening)
             return null;
         one = null;
         if (Has[t * 7 + w] != null) {
+
             one = Has[t * 7 + w];
             SL = one.week * OneW;
             ST = one.time1 * OneH;
@@ -390,6 +392,8 @@ public class Timetable extends View {
         }
 
         if (one != null) {
+            for(int i=0;i<Cnum.size();i++)
+                Has[Cnum.get(i)].onchick=false;
             pressing = false;
             one.onchick = true;
             moving = true;//移动状态
@@ -412,7 +416,8 @@ public class Timetable extends View {
         // 第一步：初始化Observable
         Observable.create((ObservableOnSubscribe<Integer>) e -> {
 
-            for (C_times = C_speed; C_times >= 0; C_times--) {
+
+            for (C_times = C_speed; C_times > 0; C_times--) {
 
                 if (!open_flag) {
                     Throwable Terro = new Throwable("打开打断");
@@ -430,7 +435,7 @@ public class Timetable extends View {
                         }
                         C_times--;
                     }
-                    sleep((C_speed - C_times));
+                    sleep((long) ((C_speed - C_times)/10));
                     e.onNext(C_times);
 
                 }
@@ -439,6 +444,7 @@ public class Timetable extends View {
 
 
             e.onComplete();
+
         }).subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Observer<Integer>() { // 第三步：订阅
@@ -472,6 +478,8 @@ public class Timetable extends View {
                     public void onComplete() {
                         mDisposable.dispose();
                         moving = false;
+                        Move = new float[]{ML, MT, MR, MB};
+
                         if (debug)
                             Log.d("open", "onComplete" + "\n");
                     }
@@ -503,7 +511,7 @@ public class Timetable extends View {
                 }
                 moving = true;
 
-                sleep((C_times) / 10);
+                sleep((C_times) / 25);
                 e.onNext(C_times);
             }
 
@@ -798,6 +806,8 @@ public class Timetable extends View {
     @Override
     public void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+
+
         // canvas.drawLine(0, OneH * Mclass, Width, OneH * Mclass, paint);//中午
 
         blur_canvas.drawColor(0, PorterDuff.Mode.CLEAR);
@@ -873,18 +883,18 @@ public class Timetable extends View {
             rx = SR + Move[2];
             by = SB + Move[3];
 
-            int db = OneH / 6;
+            band = OneH / 7;
             Main_Paint.setColor(one.color);
-            canvas.drawRoundRect(lx, ty, rx, by, 8, 8, Main_Paint);
-            Main_Paint.setColor(Color.argb((int) (55+1000/(C_times+6)), 255, 255, 255));
-            canvas.drawRoundRect(lx, ty, rx, by - 2 * db, 8, 8, Main_Paint);
+            canvas.drawRoundRect(lx+1, ty+1, rx-1, by, 8, 8, Main_Paint);
+            Main_Paint.setColor(Color.argb((int) (5+5000/(C_times+20)), 255, 255, 255));
+            canvas.drawRoundRect(lx, ty, rx, by - 2 * band, 8, 8, Main_Paint);
             Main_Paint.setColor(one.color);
 
 
             //Opaint.setColor(one.color);
             //setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
-            float dx = lx + db * 0.7f;
+            float dx = lx + band * 0.7f;
 
             if (C_times <= (C_speed / 2)) {
                 canvas.translate(dx, ty + OneH / 5f);
@@ -896,7 +906,7 @@ public class Timetable extends View {
                 canvas.translate(0, -(by - ty) * 0.6f);
                 canvas.translate(-dx, -(ty + OneH / 5f));
                 edit_button.setTint(Button_color(one.color));
-                edit_button.setBounds((int)((lx+rx)/2-db),(int)(by-2*db),(int)((lx+rx)/2+db),(int)(by));
+                edit_button.setBounds((int)((lx+rx)/2-band),(int)(by-2*band),(int)((lx+rx)/2+band),(int)(by));
                 edit_button.draw(canvas);
             } else {
                 canvas.translate(one.week * OneW + 1 + Move[0], (one.time1) * OneH + Move[1]);
@@ -907,23 +917,15 @@ public class Timetable extends View {
                 canvas.translate(-(one.week * OneW + 1 + Move[0]), -(one.time1) * OneH + Move[1]);
             }
 
-
-            //int www = 1 - (Width / 1000);
-            //canvas.drawBitmap(daohang, (lx  + daohang.getWidth()*2-30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
-            //canvas.drawBitmap(beiwang, (rx  - beiwang.getWidth()*3+30*(www)), (tempt2 + 1) * OneH + SD - Width / 7-6, paint);
-            //if(!edit){
-            //canvas.drawBitmap(editbp, (rx+lx  - editbp.getWidth())/2, (tempt2 + 1) * OneH + SD - Width / 7-6-4*www, paint);
-            //}
-
-
         }
+
     }
 
     private void init_blur() {
         if (mBitmapToBlur == null) {
             mRenderScript = RenderScript.create(context);
             mBlurScript = ScriptIntrinsicBlur.create(mRenderScript, Element.U8_4(mRenderScript));
-            mBlurScript.setRadius(12);
+            mBlurScript.setRadius(10);
 
             mBitmapToBlur = Bitmap.createBitmap(Width, Height,
                     Bitmap.Config.ARGB_8888);

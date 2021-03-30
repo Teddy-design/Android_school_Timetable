@@ -113,25 +113,25 @@ public class MainActivity extends AppCompatActivity {
                 }
                 table.addClass(0,0,1,"126663","123","123", Color.GRAY,false);
 
-                table.addClass(1,1,1,"123","123","123", Color.WHITE,false);
+                table.addClass(1,1,1,"123","123","123", Color.RED,false);
                 table.addClass(2,1,1,"测试4","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,1,1,"测试4","测试老师","一个教室", Color.GREEN,false);
                 table.addClass(4,1,1,"测试1","测试老师","一个教室", Color.GRAY,false);
                 table.addClass(5,1,1,"测试1","测试老师","一个教室", Color.BLUE,false);
 
-                table.addClass(1,2,2,"测试2","测试老师","一个教室", Color.WHITE,false);
+                table.addClass(1,2,2,"测试2","测试老师","一个教室", Color.RED,false);
                 table.addClass(2,2,2,"测试3","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,2,2,"测试0","测试老师","一个教室", Color.GREEN,false);
                 table.addClass(4,2,2,"233","测试老师","一个教室", Color.GRAY,false);
                 table.addClass(5,2,2,"123","测试老师","一个教室", Color.BLUE,false);
 
-                table.addClass(1,3,3,"测试2","测试老师","一个教室", Color.WHITE,false);
+                table.addClass(1,3,3,"测试2","测试老师","一个教室", Color.RED,false);
                 table.addClass(2,3,3,"测试3","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,3,3,"测试0","测试老师","一个教室", Color.GREEN,false);
                 table.addClass(4,3,3,"332","测试老师","一个教室", Color.GRAY,false);
                 table.addClass(5,3,3,"321","测试老师","一个教室", Color.BLUE,false);
 
-                table.addClass(1,4,4,"测试2","测试老师","一个教室", Color.WHITE,false);
+                table.addClass(1,4,4,"测试2","测试老师","一个教室", Color.RED,false);
                 table.addClass(2,4,4,"测试333","测试老师","一个教室", Color.DKGRAY,false);
                 table.addClass(3,4,4,"测试0","测试老师","一个教室", Color.GREEN,false);
                 table.addClass(4,4,4,"测试1","测试老师","一个教室", Color.GRAY,false);

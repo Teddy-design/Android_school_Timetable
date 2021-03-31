@@ -2,6 +2,7 @@ package com.Teddy.android_school_timetable;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.view.GestureDetectorCompat;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityOptions;
@@ -13,12 +14,16 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Trace;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 
 import com.Teddy.android_school_timetable.view.Timetable;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity{
+
+    private GestureDetectorCompat mDetector;
+    private Timetable table;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -32,8 +37,13 @@ public class MainActivity extends AppCompatActivity {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
 
+        mDetector = new GestureDetectorCompat(this,new FlingGestureListener());
+        // Set the gesture detector as the double tap
+        // listener.
 
-        Timetable table = findViewById(R.id.Time_table);
+
+
+        table = findViewById(R.id.Time_table);
         table.setOnTouchListener(new View.OnTouchListener() {
 
             boolean Opened=false;//防止关闭时打开
@@ -44,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
                 int t = (int) event.getY() / table.OneH;
 
                 if(event.getActionIndex()!=0)//单指操作
-                    return true;
+                    return mDetector.onTouchEvent(event);;
                 switch (event.getAction()) {
 
                     case MotionEvent.ACTION_DOWN:
@@ -77,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
                             table.Press_classs();
                         }
                         else
-                            return false;
+                            return mDetector.onTouchEvent(event);;
                         break;
                     case MotionEvent.ACTION_UP:
 
@@ -100,7 +110,7 @@ public class MainActivity extends AppCompatActivity {
                         //findViewById(R.id.editbu).setVisibility(View.GONE);
                         break;
                 }
-                return true;
+                return mDetector.onTouchEvent(event);
             }
         });
         new Thread(new Runnable() {
@@ -143,4 +153,33 @@ public class MainActivity extends AppCompatActivity {
         }).start();
 
     }
+
+
+    class FlingGestureListener extends GestureDetector.SimpleOnGestureListener {
+        private static final String DEBUG_TAG = "Gestures";
+
+        @Override
+        public boolean onDown(MotionEvent event) {
+            //Log.d(DEBUG_TAG,"onDown: " + event.toString());
+            return true;
+        }
+
+        @Override
+        public boolean onFling(MotionEvent event1, MotionEvent event2,
+                               float velocityX, float velocityY) {
+            if(table.opening) {
+                Log.d(DEBUG_TAG, "onFling: 取消");
+                return true;
+            }
+            if((event1.getX()-event2.getX())>300&&velocityX<-200)
+                Log.d(DEBUG_TAG, "onFling: 向左");
+            else if((event2.getX()-event1.getX())>300&&velocityX>200)
+                Log.d(DEBUG_TAG, "onFling: 向右");
+
+            return true;
+        }
+    }
+
+
+
 }

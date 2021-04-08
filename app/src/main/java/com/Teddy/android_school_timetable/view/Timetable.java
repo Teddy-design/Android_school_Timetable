@@ -112,7 +112,7 @@ public class Timetable extends View {
     private float by;
 
     //动画更新次数,越大越慢
-    private final int C_speed = 95;
+    private final int C_speed = 90;
 
     //移动距离
     private float[] Move;
@@ -906,7 +906,7 @@ public class Timetable extends View {
                 canvas.translate(0, -(by - ty) * 0.6f);
                 canvas.translate(-dx, -(ty + OneH / 5f));
                 edit_button.setTint(Button_color(one.color));
-                edit_button.setBounds((int)((lx+rx)/2-band),(int)(by-2*band),(int)((lx+rx)/2+band),(int)(by));
+                edit_button.setBounds((int)((lx+rx)/2-band+5),(int)(by-2*band+5),(int)((lx+rx)/2+band-5),(int)(by-5));
                 edit_button.draw(canvas);
             } else {
                 canvas.translate(one.week * OneW + 1 + Move[0], (one.time1) * OneH + Move[1]);
@@ -925,7 +925,7 @@ public class Timetable extends View {
         if (mBitmapToBlur == null) {
             mRenderScript = RenderScript.create(context);
             mBlurScript = ScriptIntrinsicBlur.create(mRenderScript, Element.U8_4(mRenderScript));
-            mBlurScript.setRadius(10);
+            mBlurScript.setRadius(8);
 
             mBitmapToBlur = Bitmap.createBitmap(Width, Height,
                     Bitmap.Config.ARGB_8888);

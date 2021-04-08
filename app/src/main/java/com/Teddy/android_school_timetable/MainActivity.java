@@ -38,8 +38,7 @@ public class MainActivity extends AppCompatActivity{
         }
 
         mDetector = new GestureDetectorCompat(this,new FlingGestureListener());
-        // Set the gesture detector as the double tap
-        // listener.
+
 
 
 

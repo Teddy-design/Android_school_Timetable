@@ -62,11 +62,8 @@ public class MainActivity extends AppCompatActivity{
                             Opened=true;
                             if (table.Should_Close_it(event.getX(), event.getY())) {
                                 table.Close_class();
-                                table.edit_over();
 
-                            //} else if (table.Should_Go(event.getX(), event.getY())) {
 
-                            //} else if (table.Should_Note(event.getX(), event.getY())) {
 
                             } else if (table.Should_Edit_it(event.getX(), event.getY())) {
 
@@ -155,11 +152,11 @@ public class MainActivity extends AppCompatActivity{
 
 
     class FlingGestureListener extends GestureDetector.SimpleOnGestureListener {
-        private static final String DEBUG_TAG = "Gestures";
+
 
         @Override
         public boolean onDown(MotionEvent event) {
-            //Log.d(DEBUG_TAG,"onDown: " + event.toString());
+
             return true;
         }
 
@@ -167,13 +164,13 @@ public class MainActivity extends AppCompatActivity{
         public boolean onFling(MotionEvent event1, MotionEvent event2,
                                float velocityX, float velocityY) {
             if(table.opening) {
-                Log.d(DEBUG_TAG, "onFling: 取消");
+                Log.d("FlingGestureListener", "onFling: 取消");
                 return true;
             }
             if((event1.getX()-event2.getX())>300&&velocityX<-200)
-                Log.d(DEBUG_TAG, "onFling: 向左");
+                Log.d("FlingGestureListener", "onFling: 向左");
             else if((event2.getX()-event1.getX())>300&&velocityX>200)
-                Log.d(DEBUG_TAG, "onFling: 向右");
+                Log.d("FlingGestureListener", "onFling: 向右");
 
             return true;
         }

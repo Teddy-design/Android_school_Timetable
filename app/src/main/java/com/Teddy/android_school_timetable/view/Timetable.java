@@ -771,14 +771,9 @@ public class Timetable extends View {
         invalidate();
     }
 
-    public void edit_it() {
-        edit = true;
-        invalidate();
-    }
 
-    public void edit_over() {
-        edit = false;
-    }
+
+
 
     public boolean Should_Close_it(float x, float y) {
         return !(EL-5 < x) || !(x < ER+5) || !(ET+5 < y) || !(y < EB-5);
@@ -788,12 +783,7 @@ public class Timetable extends View {
         return (Width * 7) / 15 < x && x < (Width * 8) / 15 && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
     }
 
-    //public boolean Should_Go(float x, float y) {
-    //    return (one.week * OneW + SL  + daohang.getWidth()*2) < x && x < (one.week * OneW + SL  + daohang.getWidth()*3) && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
-    //}
-    //public boolean Should_Note(float x, float y) {
-    //    return ((one.week + 1) * OneW + SR - beiwang.getWidth()*3) < x && x < ((one.week + 1) * OneW + SR - beiwang.getWidth()*2) && (Height) * 20 / 31 < y && y < (Height * 22) / 31;
-    //}
+
     public boolean Is_Open() {
         return opening;
     }
@@ -844,7 +834,6 @@ public class Timetable extends View {
 
         }
 
-        //mBitmapToBlur.eraseColor(((ColorDrawable) mBlurredView.getBackground()).getColor());
 
 
         ////////////////

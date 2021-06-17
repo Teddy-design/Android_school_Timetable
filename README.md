@@ -4,4 +4,4 @@
 使用了rxjava来控制动画
 目前规划完善手表端课表
 做成动图有点掉帧。测试机荣耀V10（6+64），目测还行
-![image](https://github.com/Teddy-design/Android_school_Timetable/blob/main/gif.gif)
+![image](./gif.gif)
